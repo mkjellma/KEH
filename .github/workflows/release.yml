@@ -13,16 +13,38 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reuse updater when source is unchanged
+        id: updater
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          mkdir -p package
+          previous_tag="$(git tag --sort=-version:refname | grep -vx "${GITHUB_REF_NAME}" | head -n 1 || true)"
+          if [[ -n "${previous_tag}" ]] && git diff --quiet "${previous_tag}" HEAD -- Updater; then
+            if gh release download "${previous_tag}" --pattern "KEH-Updater.exe" --dir package; then
+              echo "build=false" >> "${GITHUB_OUTPUT}"
+              echo "Reusing KEH-Updater.exe from ${previous_tag}."
+            else
+              echo "build=true" >> "${GITHUB_OUTPUT}"
+            fi
+          else
+            echo "build=true" >> "${GITHUB_OUTPUT}"
+          fi
 
       - name: Set up .NET
+        if: steps.updater.outputs.build == 'true'
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
 
       - name: Build KEH Updater
+        if: steps.updater.outputs.build == 'true'
         shell: bash
         run: |
-          mkdir -p package
           dotnet publish Updater/KEHUpdater.csproj \
             --configuration Release \
             --runtime win-x64 \
