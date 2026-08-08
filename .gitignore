@@ -1,0 +1,5 @@
+*.zip
+*.log
+KjellmanPriceHelperSavedVariables.lua
+.vs/
+.vscode/
