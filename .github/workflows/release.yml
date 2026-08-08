@@ -1,0 +1,33 @@
+name: Package release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build addon archive
+        shell: bash
+        run: |
+          mkdir -p package/KjellmanESOHelper
+          cp *.lua *.txt package/KjellmanESOHelper/
+          cd package
+          zip -r "KjellmanESOHelper-${GITHUB_REF_NAME}.zip" KjellmanESOHelper
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            "package/KjellmanESOHelper-${GITHUB_REF_NAME}.zip" \
+            --title "Kjellman ESO Helper ${GITHUB_REF_NAME}" \
+            --generate-notes
