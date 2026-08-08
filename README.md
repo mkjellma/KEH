@@ -54,6 +54,19 @@ Current version: **2.0.3**
 
 GitHub releases contain an install-ready `KjellmanESOHelper` folder. Release archives are generated automatically when a version tag such as `v2.0.3` is pushed.
 
+### KEH Updater for Windows
+
+For the easiest installation, download `KEH-Updater.exe` from the latest release and run it while ESO is closed. The updater:
+
+- finds the standard ESO `live/AddOns` folder automatically;
+- compares the installed KEH version with the latest GitHub release;
+- downloads and validates the official release archive;
+- creates a timestamped backup before replacing the addon;
+- can restore the latest backup;
+- never modifies ESO `SavedVariables`, builds or Notepad data.
+
+Windows may show a SmartScreen warning because this personal utility is not code-signed. The updater source is available in the [`Updater`](Updater) directory.
+
 ## License
 
 Licensed under the MIT License. See [LICENSE](LICENSE).
