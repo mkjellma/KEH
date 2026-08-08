@@ -1,5 +1,38 @@
 local KPH=KjellmanESOHelper
 
+local function NormalizeLocationName(value)
+    return zo_strlower(zo_strtrim(zo_strformat("<<C:1>>",value or "")))
+end
+
+local function FindZoneForCollectionNames(setId,names)
+    if type(GetNumZones)~="function" or type(GetZoneNameByIndex)~="function" or
+       type(GetZoneId)~="function" then return nil end
+    local wanted={}
+    for _,name in ipairs(names) do wanted[NormalizeLocationName(name)]=true end
+    local matchedZoneId
+    for zoneIndex=1,GetNumZones() do
+        local zoneName=GetZoneNameByIndex(zoneIndex)
+        if wanted[NormalizeLocationName(zoneName)] then
+            matchedZoneId=GetZoneId(zoneIndex)
+        end
+    end
+    if not matchedZoneId or matchedZoneId==0 then return nil end
+    local storyZoneId=type(GetZoneStoryZoneIdForZoneId)=="function" and
+        GetZoneStoryZoneIdForZoneId(matchedZoneId) or nil
+    local usedStoryZone=storyZoneId and storyZoneId~=0
+    if usedStoryZone then matchedZoneId=storyZoneId end
+    local setType=GetItemSetType(setId)
+    if (setType==ITEM_SET_TYPE_DUNGEON or setType==ITEM_SET_TYPE_MONSTER or
+        setType==ITEM_SET_TYPE_WEAPON) and not usedStoryZone and
+        type(GetParentZoneId)=="function" then
+        local parentId=GetParentZoneId(matchedZoneId)
+        if parentId and parentId~=0 then matchedZoneId=parentId end
+    end
+    local zoneName=type(GetZoneNameById)=="function" and
+        GetZoneNameById(matchedZoneId) or nil
+    return zoneName and zoneName~="" and zo_strformat("<<C:1>>",zoneName) or nil
+end
+
 local function CollectionLocation(setId)
     local names={}
     local categoryId=GetItemSetCollectionCategoryId(setId)
@@ -10,7 +43,12 @@ local function CollectionLocation(setId)
         categoryId=GetItemSetCollectionCategoryParentId(categoryId)
         safety=safety+1
     end
-    return #names>0 and table.concat(names," > ") or "Unknown location"
+    local location=#names>0 and table.concat(names," > ") or "Unknown location"
+    local zone=FindZoneForCollectionNames(setId,names)
+    if not zone and GetItemSetType(setId)==ITEM_SET_TYPE_WORLD and #names>0 then
+        zone=names[#names]
+    end
+    return location,zone or "Unknown zone"
 end
 
 local function PieceSource(setId,itemLink)
@@ -99,11 +137,13 @@ function KPH:FindItemLocations(search)
                 end
             end
         end
+        local location,zone=CollectionLocation(entry.id)
         table.insert(results,{
             setId=entry.id,
             name=bestName or entry.name,
             setName=entry.name,
-            location=CollectionLocation(entry.id),
+            location=location,
+            zone=zone,
             source=bestLink and PieceSource(entry.id,bestLink) or
                 GeneralSource(entry.id),
         })
@@ -126,6 +166,9 @@ function KPH:RefreshItemFinder()
                 "  |cAAAAAA["..result.setName.."]|r"
             button:SetText(string.format("|cFFFFFF%s|r%s\n|cD6B35A%s|r  |cAAAAAA— %s|r",
                 result.name,setText,result.location,result.source))
+            button:SetText(string.format(
+                "|cFFFFFF%s|r%s\n|cD6B35A%s|r  |cAAAAAA- %s|r  |c66AADDZone: %s|r",
+                result.name,setText,result.location,result.source,result.zone))
             button:SetHidden(false)
         else button:SetHidden(true) end
     end
