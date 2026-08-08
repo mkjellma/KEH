@@ -3,3 +3,5 @@
 KjellmanPriceHelperSavedVariables.lua
 .vs/
 .vscode/
+**/bin/
+**/obj/
