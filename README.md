@@ -2,7 +2,7 @@
 
 Kjellman ESO Helper is a quality-of-life addon for **The Elder Scrolls Online (PC)**. It combines pricing, inventory management, build planning, item finding, quest focus and an in-game notepad in one addon.
 
-Current version: **2.0.3**
+Current version: **2.1.0**
 
 ## Features
 
@@ -12,7 +12,7 @@ Current version: **2.0.3**
 - Notifications for valuable items and planned build drops.
 - Build Planner with sets, armor weight, weapon type, traits and owned-item matching.
 - Build import/export using the `KEHBUILD` text format.
-- Item Finder with acquisition hints for overland, dungeon, monster and special sets.
+- Item Finder with acquisition hints and zone names for overland, dungeon, monster and special sets.
 - Floating Notepad with General, Farming, Shopping and Build tabs.
 - Checklists, missing-build lists and `KEHNOTE` import/export.
 - Automatic focus for newly accepted quests.

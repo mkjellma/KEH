@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.0
+
+- Added zone names to Item Finder results.
+- Dungeon and subzone results resolve to their parent story zone when ESO provides that relationship.
+- Added an overland fallback when ESO's zone API does not return a direct match.
+
 ## 2.0.3
 
 - Added the floating KEH Notepad with four saved tabs.
