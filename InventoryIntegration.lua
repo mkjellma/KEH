@@ -158,6 +158,16 @@ local SMART_FILTERS={
     {key="duplicates",label="Duplicates"},
 }
 
+local SMART_FILTER_INCLUDE=1
+local SMART_FILTER_EXCLUDE=-1
+
+local function SmartFilterMode(value)
+    -- Migrate the previous boolean checkbox format without losing selections.
+    if value==true then return SMART_FILTER_INCLUDE end
+    if value==SMART_FILTER_INCLUDE or value==SMART_FILTER_EXCLUDE then return value end
+    return 0
+end
+
 local function InventoryIdentityKey(itemLink)
     local hasSet,_,_,_,_,setId=GetItemLinkSetInfo(itemLink,false)
     if hasSet then
@@ -279,7 +289,9 @@ function KPH:DoesSlotPassSmartFilters(slotData)
     local preset=self.savedVariables.inventoryPreset or "all"
     local filters=self.savedVariables.inventorySmartFilters or {}
     local hasFilter=false
-    for _,value in pairs(filters) do if value then hasFilter=true break end end
+    for _,value in pairs(filters) do
+        if SmartFilterMode(value)~=0 then hasFilter=true break end
+    end
     if preset=="all" and not hasFilter then return true end
     local info=self:GetInventorySmartInfo(slotData)
     if preset=="keep" and not info.protected and not info.mythic then return false end
@@ -291,7 +303,9 @@ function KPH:DoesSlotPassSmartFilters(slotData)
     if preset=="cleanup" and (info.protected or not
        (info.intricate or info.ornate or info.duplicates)) then return false end
     for _,definition in ipairs(SMART_FILTERS) do
-        if filters[definition.key] and not info[definition.key] then return false end
+        local mode=SmartFilterMode(filters[definition.key])
+        if mode==SMART_FILTER_INCLUDE and not info[definition.key] then return false end
+        if mode==SMART_FILTER_EXCLUDE and info[definition.key] then return false end
     end
     return true
 end
@@ -315,8 +329,10 @@ function KPH:UpdateInventoryManagerPanel()
     end
     local filters=self.savedVariables.inventorySmartFilters or {}
     for key,button in pairs(self.inventoryManagerFilterButtons or {}) do
-        button:SetText((filters[key] and "|c66CC66[X] " or "|c888888[ ] ")..
-            button.kehLabel.."|r")
+        local mode=SmartFilterMode(filters[key])
+        local marker=mode==SMART_FILTER_INCLUDE and "|c66CC66[+] " or
+            (mode==SMART_FILTER_EXCLUDE and "|cE05A5A[-] " or "|c888888[ ] ")
+        button:SetText(marker..button.kehLabel.."|r")
     end
 end
 
@@ -331,9 +347,10 @@ function KPH:ToggleInventorySmartFilter(key)
     self.savedVariables.inventoryPreset="all"
     local filters=self.savedVariables.inventorySmartFilters or {}
     self.savedVariables.inventorySmartFilters=filters
-    filters[key]=not filters[key]
-    if key=="locked" and filters[key] then filters.unlocked=false end
-    if key=="unlocked" and filters[key] then filters.locked=false end
+    local mode=SmartFilterMode(filters[key])
+    if mode==0 then filters[key]=SMART_FILTER_INCLUDE
+    elseif mode==SMART_FILTER_INCLUDE then filters[key]=SMART_FILTER_EXCLUDE
+    else filters[key]=nil end
     self:UpdateInventoryManagerPanel()
     self:RefreshInventoryManagerLists()
 end
@@ -348,14 +365,26 @@ function KPH:CreateInventoryManagerControls()
     toggle:SetHidden(true)
     local panel=WINDOW_MANAGER:CreateTopLevelWindow(
         self.name.."InventoryManagerPanel")
-    panel:SetDimensions(270,520)
-    panel:SetAnchor(CENTER,GuiRoot,CENTER,0,0)
+    panel:SetDimensions(370,530)
+    if (self.savedVariables.inventoryManagerX or 0)>0 and
+       (self.savedVariables.inventoryManagerY or 0)>0 then
+        panel:SetAnchor(TOPLEFT,GuiRoot,TOPLEFT,
+            self.savedVariables.inventoryManagerX,
+            self.savedVariables.inventoryManagerY)
+    else
+        panel:SetAnchor(CENTER,GuiRoot,CENTER,0,0)
+    end
     panel:SetMouseEnabled(true)
+    panel:SetMovable(true)
     panel:SetClampedToScreen(true)
     panel:SetDrawTier(DT_HIGH)
     panel:SetDrawLayer(DL_OVERLAY)
     panel:SetDrawLevel(200)
     panel:SetHidden(true)
+    panel:SetHandler("OnMoveStop",function(control)
+        self.savedVariables.inventoryManagerX=control:GetLeft()
+        self.savedVariables.inventoryManagerY=control:GetTop()
+    end)
     local panelBG=WINDOW_MANAGER:CreateControl(
         self.name.."InventoryManagerPanelBG",panel,CT_BACKDROP)
     panelBG:SetAnchorFill(panel)
@@ -387,7 +416,7 @@ function KPH:CreateInventoryManagerControls()
     for index,definition in ipairs(presets) do
         local presetKey=definition.key
         local button=WINDOW_MANAGER:CreateControl(nil,panel,CT_BUTTON)
-        button:SetDimensions(230,24)
+        button:SetDimensions(330,24)
         button:SetAnchor(TOPLEFT,panel,TOPLEFT,20,72+(index-1)*24)
         button:SetFont("ZoFontGameSmall")
         button:SetHorizontalAlignment(TEXT_ALIGN_LEFT)
@@ -400,12 +429,12 @@ function KPH:CreateInventoryManagerControls()
     local filterLabel=WINDOW_MANAGER:CreateControl(nil,panel,CT_LABEL)
     filterLabel:SetAnchor(TOPLEFT,panel,TOPLEFT,18,222)
     filterLabel:SetFont("ZoFontGameBold")
-    filterLabel:SetText("SMART FILTERS (combine)")
+    filterLabel:SetText("SMART FILTERS  [+ only / - exclude]")
     self.inventoryManagerFilterButtons={}
     for index,definition in ipairs(SMART_FILTERS) do
         local filterKey=definition.key
         local button=WINDOW_MANAGER:CreateControl(nil,panel,CT_BUTTON)
-        button:SetDimensions(230,22)
+        button:SetDimensions(330,22)
         button:SetAnchor(TOPLEFT,panel,TOPLEFT,20,244+(index-1)*22)
         button:SetFont("ZoFontGameSmall")
         button:SetHorizontalAlignment(TEXT_ALIGN_LEFT)
@@ -416,8 +445,6 @@ function KPH:CreateInventoryManagerControls()
         self.inventoryManagerFilterButtons[filterKey]=button
     end
     toggle:SetHandler("OnClicked",function()
-        panel:ClearAnchors()
-        panel:SetAnchor(CENTER,GuiRoot,CENTER,0,0)
         panel:SetHidden(not panel:IsHidden())
         self:UpdateInventoryManagerPanel()
     end)
@@ -429,8 +456,6 @@ function KPH:CreateInventoryManagerControls()
         bankToggle:SetText("KEH Filters")
         bankToggle:SetHidden(true)
         bankToggle:SetHandler("OnClicked",function()
-            panel:ClearAnchors()
-            panel:SetAnchor(CENTER,GuiRoot,CENTER,0,0)
             panel:SetHidden(not panel:IsHidden())
             self:UpdateInventoryManagerPanel()
         end)
@@ -444,8 +469,6 @@ end
 function KPH:ToggleInventoryManagerPanel()
     if not self.inventoryManagerPanel then self:CreateInventoryManagerControls() end
     if not self.inventoryManagerPanel then return end
-    self.inventoryManagerPanel:ClearAnchors()
-    self.inventoryManagerPanel:SetAnchor(CENTER,GuiRoot,CENTER,0,0)
     self.inventoryManagerPanel:SetHidden(not self.inventoryManagerPanel:IsHidden())
     self:UpdateInventoryManagerPanel()
 end
