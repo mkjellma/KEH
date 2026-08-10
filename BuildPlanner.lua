@@ -1433,7 +1433,7 @@ end
 function KPH:CreateBuildLauncher()
     if self.buildLauncher then return end
     local launcher=WINDOW_MANAGER:CreateTopLevelWindow(self.name.."BuildLauncher")
-    launcher:SetDimensions(330,38)
+    launcher:SetDimensions(420,38)
     launcher:SetAnchor(TOPLEFT,GuiRoot,TOPLEFT,
         self.savedVariables.buildLauncherX or 20,
         self.savedVariables.buildLauncherY or 300)
@@ -1476,12 +1476,21 @@ function KPH:CreateBuildLauncher()
     local notesButton=WINDOW_MANAGER:CreateControl(
         self.name.."BuildLauncherNotes",launcher,CT_BUTTON)
     notesButton:SetDimensions(86,34)
-    notesButton:SetAnchor(RIGHT,launcher,RIGHT,-2,0)
+    notesButton:SetAnchor(LEFT,inventoryButton,RIGHT,2,0)
     notesButton:SetFont("ZoFontGameBold")
     notesButton:SetText("NOTES")
     notesButton:SetNormalFontColor(1,0.75,0.35,1)
     notesButton:SetMouseOverFontColor(1,1,1,1)
     notesButton:SetHandler("OnClicked",function() self:ToggleNotepad() end)
+    local goldButton=WINDOW_MANAGER:CreateControl(
+        self.name.."BuildLauncherGold",launcher,CT_BUTTON)
+    goldButton:SetDimensions(86,34)
+    goldButton:SetAnchor(RIGHT,launcher,RIGHT,-2,0)
+    goldButton:SetFont("ZoFontGameBold")
+    goldButton:SetText("GOLD")
+    goldButton:SetNormalFontColor(1,0.78,0.2,1)
+    goldButton:SetMouseOverFontColor(1,1,1,1)
+    goldButton:SetHandler("OnClicked",function() self:ShowGoldmaker() end)
     launcher:SetHandler("OnMouseDown",function(control)
         control.kehStartLeft=control:GetLeft()
         control.kehStartTop=control:GetTop()

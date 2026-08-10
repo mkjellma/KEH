@@ -1,7 +1,7 @@
 ## APIVersion: 101049
 ## Title: Kjellman ESO Helper
 ## Description: Prisverktyg, butiksinformation och automatiskt questfokus för ESO.
-## Version: 2.1.0
+## Version: 2.6.3
 ## Author: Kjellman
 ## SavedVariables: KjellmanPriceHelperSavedVariables
 ## OptionalDependsOn: TamrielTradeCentre LibAddonMenu-2.0
@@ -16,5 +16,7 @@ DealIntegration.lua
 SetPlanner.lua
 BuildPlanner.lua
 Notepad.lua
+Goldmaker.lua
+FishingIntegration.lua
 ItemFinder.lua
 Settings.lua

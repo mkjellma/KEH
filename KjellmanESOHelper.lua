@@ -3,7 +3,7 @@ local KPH = KjellmanESOHelper
 
 KPH.name = "KjellmanESOHelper"
 KPH.displayName = "Kjellman ESO Helper"
-KPH.version = "2.1.0"
+KPH.version = "2.6.3"
 KPH.DEBUG = false
 KPH.defaults = {
     autoFill = true,
@@ -25,6 +25,14 @@ KPH.defaults = {
     notepadY = 220,
     inventoryPreset = "all",
     inventorySmartFilters = {},
+    inventoryManagerX = 0,
+    inventoryManagerY = 0,
+    goldmakerPlans = {},
+    goldmakerFarmList = {},
+    goldmakerX = 0,
+    goldmakerY = 0,
+    fishingBiteSound = true,
+    fishingBiteIndicator = true,
     notifyValuableItems = true,
     valuableItemThreshold = 10000,
     showStoreSuggestedPrice = true,
@@ -94,6 +102,8 @@ function KPH:Initialize()
     self:InitializeQuestIntegration()
     self:InitializeDealIntegration()
     self:InitializeNotepad()
+    self:InitializeGoldmaker()
+    self:InitializeFishingIntegration()
     self:InitializeBuildPlanner()
     self:InitializeSettings()
 

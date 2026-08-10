@@ -111,6 +111,28 @@ function KPH:InitializeSettings()
             default = self.defaults.focusNewQuests,
         },
         {
+            type = "header", name = "Fishing bite notification",
+        },
+        {
+            type = "checkbox", name = "Fishing bite sound",
+            tooltip = "Plays a double sound cue when it is time to reel in.",
+            getFunc = function() return self.savedVariables.fishingBiteSound end,
+            setFunc = function(value) self.savedVariables.fishingBiteSound = value end,
+            default = self.defaults.fishingBiteSound,
+        },
+        {
+            type = "checkbox", name = "Fishing bite indicator",
+            tooltip = "Shows a large REEL IN! indicator when a fish bites.",
+            getFunc = function() return self.savedVariables.fishingBiteIndicator end,
+            setFunc = function(value)
+                self.savedVariables.fishingBiteIndicator = value
+                if not value and self.fishingIndicator then
+                    self.fishingIndicator:SetHidden(true)
+                end
+            end,
+            default = self.defaults.fishingBiteIndicator,
+        },
+        {
             type = "header", name = "Prisjämförelse i Guild Trader",
         },
         {

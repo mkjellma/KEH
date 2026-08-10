@@ -113,3 +113,46 @@ function KPH:GetTTCSuggestedPrice(itemLink)
     end
     return price, confidence
 end
+
+local function FindTTCPriceLeaf(node,depth)
+    if type(node)~="table" or depth>8 then return nil end
+    if tonumber(node.S) or tonumber(node.A) or tonumber(node.N) then return node end
+    for _,child in pairs(node) do
+        local found=FindTTCPriceLeaf(child,depth+1)
+        if found then return found end
+    end
+end
+
+-- TTC's lookup and price tables let Goldmaker value a curated material even
+-- when the player does not currently own an item link for it.
+function KPH:GetTTCPriceByName(itemName)
+    if type(itemName)~="string" or itemName=="" or not TamrielTradeCentre or
+       not TamrielTradeCentrePrice or not TamrielTradeCentre.ItemLookUpTable or
+       not TamrielTradeCentrePrice.PriceTable then return nil end
+    local types=TamrielTradeCentre.ItemLookUpTable[zo_strlower(itemName)]
+    if type(types)~="table" then return nil end
+    local data=TamrielTradeCentrePrice.PriceTable.Data
+    if type(data)~="table" then return nil end
+    local leaf
+    for _,ttcId in pairs(types) do
+        leaf=FindTTCPriceLeaf(data[ttcId],0)
+        if leaf then break end
+    end
+    if not leaf then return nil end
+    local suggested=tonumber(leaf.S)
+    local average=tonumber(leaf.A)
+    local minimum=tonumber(leaf.N)
+    local saleAverage=tonumber(leaf.SA)
+    local price=suggested
+    if not price or price<=0 then
+        price=self:CalculateTTCFallbackPrice({Avg=average,Min=minimum,
+            SaleAvg=saleAverage,EntryCount=leaf.EC,SaleEntryCount=leaf.SE})
+    end
+    if not price or price<=0 then return nil end
+    local listings=math.max(0,tonumber(leaf.EC) or 0)
+    local sales=math.max(0,tonumber(leaf.SE) or 0)
+    local confidence=(suggested and sales>=5) and "high" or
+        ((listings>=3 or sales>=1) and "medium" or "low")
+    return price,confidence,{EntryCount=listings,SaleEntryCount=sales,
+        Avg=average,Min=minimum,SaleAvg=saleAverage,SuggestedPrice=suggested}
+end
