@@ -2,7 +2,7 @@
 
 Kjellman ESO Helper is a quality-of-life addon for **The Elder Scrolls Online (PC)**. It combines pricing, inventory management, build planning, item finding, quest focus and an in-game notepad in one addon.
 
-Current version: **2.6.3**
+Current version: **2.7.1**
 
 ## Features
 
@@ -13,6 +13,7 @@ Current version: **2.6.3**
 - Build Planner with sets, armor weight, weapon type, traits and owned-item matching.
 - Build import/export using the `KEHBUILD` text format.
 - Item Finder with acquisition hints and zone names for overland, dungeon, monster and special sets.
+- Mythic Helper with name search, owned/active/missing lead status, zones and detailed drop hints through LibLeadDrop.
 - Floating Notepad with General, Farming, Shopping and Build tabs.
 - Checklists, missing-build lists and `KEHNOTE` import/export.
 - Automatic focus for newly accepted quests.
@@ -42,6 +43,7 @@ Current version: **2.6.3**
 - `INV`: open KEH Inventory Manager.
 - `NOTES`: open KEH Notepad.
 - `GOLD`: open Goldmaker Production and Farming.
+- `MYTHIC`: open Mythic Helper.
 - Build slot left click: choose a set.
 - Build slot right click: cycle armor weight or weapon type.
 - Build slot Shift + right click: cycle trait.
@@ -53,6 +55,7 @@ Current version: **2.6.3**
 - `/kehimport` — open Build Import.
 - `/kehnotes` — open Notepad.
 - `/kehgold` — open Goldmaker.
+- `/kehmythic <name>` — search for and open a Mythic item.
 - `/kehfishalert` — test the configured fishing bite notifications.
 - `/kehprice` — show TTC price for the selected guild-store item.
 

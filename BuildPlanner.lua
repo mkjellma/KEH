@@ -1433,7 +1433,7 @@ end
 function KPH:CreateBuildLauncher()
     if self.buildLauncher then return end
     local launcher=WINDOW_MANAGER:CreateTopLevelWindow(self.name.."BuildLauncher")
-    launcher:SetDimensions(420,38)
+    launcher:SetDimensions(508,38)
     launcher:SetAnchor(TOPLEFT,GuiRoot,TOPLEFT,
         self.savedVariables.buildLauncherX or 20,
         self.savedVariables.buildLauncherY or 300)
@@ -1482,6 +1482,15 @@ function KPH:CreateBuildLauncher()
     notesButton:SetNormalFontColor(1,0.75,0.35,1)
     notesButton:SetMouseOverFontColor(1,1,1,1)
     notesButton:SetHandler("OnClicked",function() self:ToggleNotepad() end)
+    local mythicButton=WINDOW_MANAGER:CreateControl(
+        self.name.."BuildLauncherMythic",launcher,CT_BUTTON)
+    mythicButton:SetDimensions(86,34)
+    mythicButton:SetAnchor(LEFT,notesButton,RIGHT,2,0)
+    mythicButton:SetFont("ZoFontGameBold")
+    mythicButton:SetText("MYTHIC")
+    mythicButton:SetNormalFontColor(0.8,0.55,1,1)
+    mythicButton:SetMouseOverFontColor(1,1,1,1)
+    mythicButton:SetHandler("OnClicked",function() self:ShowMythicHelper() end)
     local goldButton=WINDOW_MANAGER:CreateControl(
         self.name.."BuildLauncherGold",launcher,CT_BUTTON)
     goldButton:SetDimensions(86,34)

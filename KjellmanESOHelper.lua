@@ -3,7 +3,7 @@ local KPH = KjellmanESOHelper
 
 KPH.name = "KjellmanESOHelper"
 KPH.displayName = "Kjellman ESO Helper"
-KPH.version = "2.6.3"
+KPH.version = "2.7.1"
 KPH.DEBUG = false
 KPH.defaults = {
     autoFill = true,
@@ -13,6 +13,7 @@ KPH.defaults = {
     showInventorySuggestedPrice = true,
     protectArmoryItems = true,
     plannedSetId = 0,
+    plannedMythicSetId = 0,
     plannerNotifications = true,
     buildPlans = {},
     activeBuildName = "Build 1",
@@ -105,6 +106,7 @@ function KPH:Initialize()
     self:InitializeGoldmaker()
     self:InitializeFishingIntegration()
     self:InitializeBuildPlanner()
+    self:InitializeMythicHelper()
     self:InitializeSettings()
 
     local function ToggleDebug()
