@@ -18,15 +18,23 @@ function KPH:CreateFishingIndicator()
     self.fishingIndicator=w
 end
 
-function KPH:NotifyFishingBite()
+local function PlayFishingAlertSound()
+    -- Use a prominent UI sound. Some clients do not expose every SOUNDS key,
+    -- so retain the old quest sound as a safe fallback.
+    local sound=SOUNDS and (SOUNDS.DUEL_START or SOUNDS.GENERAL_ALERT_ERROR or
+        SOUNDS.QUEST_OBJECTIVE_INCREMENT)
+    if sound then PlaySound(sound) end
+end
+
+function KPH:NotifyFishingBite(force)
     local now=GetFrameTimeMilliseconds()
-    if now-(self.lastFishingBiteNotification or 0)<2000 then return end
+    if not force and now-(self.lastFishingBiteNotification or 0)<2000 then return end
     self.lastFishingBiteNotification=now
     if self.savedVariables.fishingBiteSound then
-        PlaySound(SOUNDS.QUEST_OBJECTIVE_INCREMENT)
+        PlayFishingAlertSound()
         zo_callLater(function()
             if self.savedVariables.fishingBiteSound then
-                PlaySound(SOUNDS.QUEST_OBJECTIVE_INCREMENT)
+                PlayFishingAlertSound()
             end
         end,220)
     end
@@ -40,7 +48,8 @@ function KPH:NotifyFishingBite()
 end
 
 function KPH:InitializeFishingIntegration()
-    SLASH_COMMANDS["/kehfishalert"]=function() self:NotifyFishingBite() end
+    -- The test command must always play, even if a real bite just fired.
+    SLASH_COMMANDS["/kehfishalert"]=function() self:NotifyFishingBite(true) end
     if not EVENT_VIBRATION then
         self:DebugLog("Fishing vibration event is unavailable")
         return
@@ -55,11 +64,21 @@ function KPH:InitializeFishingIntegration()
             function() self.fishingLureActive=false end)
     end
     EVENT_MANAGER:RegisterForEvent(namespace,EVENT_VIBRATION,
-        function(_,duration)
-            duration=tonumber(duration) or 0
+        function(...)
+            -- EVENT_MANAGER normally supplies eventCode before duration, but
+            -- scanning the arguments also works on clients/input modes that
+            -- expose a slightly different callback signature.
+            local duration=0
+            for index=1,select("#",...) do
+                local value=tonumber((select(index,...)))
+                if value and value>=2250 and value<=2750 then
+                    duration=value
+                    break
+                end
+            end
             -- A fishing bite has a distinctive 2500 ms vibration. Lure events
             -- are not reliable on every input mode, so they must not gate it.
-            if math.abs(duration-2500)<=100 then
+            if math.abs(duration-2500)<=250 then
                 self:NotifyFishingBite()
             end
         end)

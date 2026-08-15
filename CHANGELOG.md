@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.7.1
+
+- Added Details and All Mythics tabs with collection status and click-through navigation.
+- Increased the Mythic Helper height.
+- Added red, orange and green status for missing, active/partial and completed Mythics.
+- Added native ESO item tooltips when hovering Mythics in the full list.
+- Improved fishing bite detection and made `/kehfishalert` use a more noticeable alert sound reliably.
+
+## 2.7.0
+
+- Added Mythic Helper with search for all five-fragment Mythic antiquity sets.
+- Shows recovered fragments, active leads, missing leads, excavation zones and drop hints.
+- Added the `MYTHIC` launcher button and `/kehmythic <name>` command.
+- Added optional LibLeadDrop integration for maintained, detailed lead sources.
+
 ## 2.6.3
 
 - Added Goldmaker with separate Production and Farming workflows.
