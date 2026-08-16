@@ -3,7 +3,7 @@ local KPH = KjellmanESOHelper
 
 KPH.name = "KjellmanESOHelper"
 KPH.displayName = "Kjellman ESO Helper"
-KPH.version = "2.7.1"
+KPH.version = "2.7.2"
 KPH.DEBUG = false
 KPH.defaults = {
     autoFill = true,

@@ -2,7 +2,7 @@
 
 Kjellman ESO Helper is a quality-of-life addon for **The Elder Scrolls Online (PC)**. It combines pricing, inventory management, build planning, item finding, quest focus and an in-game notepad in one addon.
 
-Current version: **2.7.1**
+Current version: **2.7.2**
 
 ## Features
 

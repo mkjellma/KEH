@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.7.2
+
+- Added built-in drop hints for Shattered Paths Signet because LibLeadDrop 1.0.0 does not yet contain its five leads.
+
 ## 2.7.1
 
 - Added Details and All Mythics tabs with collection status and click-through navigation.
