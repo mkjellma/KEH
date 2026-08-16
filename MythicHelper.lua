@@ -4,11 +4,25 @@ local function Clean(value)
     return zo_strformat("<<C:1>>", value or "")
 end
 
+-- LibLeadDrop 1.0.0 predates Shattered Paths Signet. Keep these keyed by the
+-- localized English lead names returned by the current game data so the helper
+-- remains useful until the shared library publishes matching antiquity IDs.
+local LEAD_HINT_FALLBACKS={
+    ["flickering charcoal rubbings"]="Daedroth Larder World Boss, Coldharbour",
+    ["fractured prismatic gem"]="Cynhamoth's Grove World Boss, Coldharbour",
+    ["nugget of aetheric gold"]="Aba-Loria delve boss, Coldharbour",
+    ["ossein ring mold"]="City of Ash II, chest after the final boss",
+    ["starlight oil"]="The Wailing Maw delve boss, Coldharbour",
+}
+
 local function GetDropHint(antiquityId)
     if LibLeadDrop and LibLeadDrop.getLeadDropHint then
         local hint = LibLeadDrop.getLeadDropHint(antiquityId)
         if hint and hint ~= "" then return hint end
     end
+    local leadName=zo_strlower(GetAntiquityName(antiquityId) or "")
+    local fallback=LEAD_HINT_FALLBACKS[leadName]
+    if fallback then return fallback end
     return "Exakt dropkälla kräver LibLeadDrop"
 end
 
