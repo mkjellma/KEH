@@ -1,314 +1,487 @@
 local KPH = KjellmanESOHelper
 
-local function GetPieceKey(itemLink)
-    local equipType = GetItemLinkEquipType(itemLink)
-    local weaponType = GetItemLinkWeaponType(itemLink)
-    if weaponType and weaponType ~= WEAPONTYPE_NONE then
-        return string.format("w:%d", weaponType)
+local STARTER_SETS = {
+    "Briarheart", "Sergeant's Mail", "Mother's Sorrow",
+    "Pillar of Nirn", "Burning Spellweave", "Hunding's Rage",
+    "Order's Wrath",
+}
+
+local function ContainsId(values, wanted)
+    for _, value in ipairs(values or {}) do
+        if value == wanted then return true end
     end
-    return string.format("e:%d", equipType or 0)
+    return false
 end
 
-local function GetCollectionLocation(itemSetId)
-    local names = {}
-    local categoryId = GetItemSetCollectionCategoryId(itemSetId)
-    local safety = 0
-    while categoryId and categoryId > 0 and safety < 6 do
-        local name = GetItemSetCollectionCategoryName(categoryId)
-        if name and name ~= "" then table.insert(names, 1, name) end
-        categoryId = GetItemSetCollectionCategoryParentId(categoryId)
-        safety = safety + 1
+local function AddLocationText(places, location)
+    if not location then return end
+    if location.bank and location.bank > 0 then
+        table.insert(places, string.format("Bank x%d", location.bank))
     end
-    return #names > 0 and table.concat(names, " > ") or "Okänd plats"
-end
-
-local function GetSource(itemSetType, itemLink)
-    local equipType = GetItemLinkEquipType(itemLink)
-    local weaponType = GetItemLinkWeaponType(itemLink)
-    local isWeapon = weaponType and weaponType ~= WEAPONTYPE_NONE
-
-    if itemSetType == ITEM_SET_TYPE_WORLD then
-        if equipType == EQUIP_TYPE_WAIST or equipType == EQUIP_TYPE_FEET then
-            return "Delve-boss"
-        elseif equipType == EQUIP_TYPE_HEAD or equipType == EQUIP_TYPE_CHEST or
-               equipType == EQUIP_TYPE_LEGS then
-            return "World boss"
-        elseif equipType == EQUIP_TYPE_SHOULDERS or equipType == EQUIP_TYPE_HAND then
-            return "Public dungeon-boss"
-        elseif equipType == EQUIP_TYPE_RING or equipType == EQUIP_TYPE_NECK then
-            return "Dark Anchor / world event"
-        elseif isWeapon then
-            return "World boss / public dungeon-boss"
+    for _, character in ipairs(location.characters or {}) do
+        local details = {}
+        if character.worn > 0 then table.insert(details, "equipped") end
+        if character.backpack > 0 then
+            table.insert(details, string.format("bag x%d", character.backpack))
         end
-        return "Zonaktivitet / treasure chest"
-    elseif itemSetType == ITEM_SET_TYPE_DUNGEON then
-        if isWeapon or equipType == EQUIP_TYPE_RING or equipType == EQUIP_TYPE_NECK then
-            return "Dungeonens slutboss"
-        elseif equipType == EQUIP_TYPE_WAIST or equipType == EQUIP_TYPE_HAND or
-               equipType == EQUIP_TYPE_FEET then
-            return "Dungeonens minibossar"
-        end
-        return "Dungeonbossar"
-    elseif itemSetType == ITEM_SET_TYPE_MONSTER then
-        if equipType == EQUIP_TYPE_HEAD then return "Veteran-dungeonens slutboss" end
-        return "Undaunted-kista"
-    elseif itemSetType == ITEM_SET_TYPE_CRAFTED then
-        return "Crafting station"
-    elseif itemSetType == ITEM_SET_TYPE_WEAPON then
-        return "Arena / specialaktivitet"
+        table.insert(places, string.format("%s (%s)", character.name,
+            table.concat(details, ", ")))
     end
-    return "Setets aktivitet"
 end
 
-function KPH:GetPhysicalSetPieces(itemSetId)
-    local owned = {}
-    local bags = { BAG_BACKPACK, BAG_WORN, BAG_BANK, BAG_SUBSCRIBER_BANK }
-    for _, bagId in ipairs(bags) do
-        for slotIndex = 0, GetBagSize(bagId) - 1 do
-            local itemLink = GetItemLink(bagId, slotIndex, LINK_STYLE_DEFAULT)
-            if itemLink and itemLink ~= "" then
-                local hasSet, _, _, _, _, setId = GetItemLinkSetInfo(itemLink, false)
-                if hasSet and setId == itemSetId then
-                    owned[GetPieceKey(itemLink)] = true
-                end
+local DETAIL_FILTERS = {
+    { key="all", label="ALL", width=70 },
+    { key="light", label="LIGHT ARMOR", width=140 },
+    { key="medium", label="MEDIUM ARMOR", width=155 },
+    { key="heavy", label="HEAVY ARMOR", width=145 },
+    { key="weapons", label="WEAPONS", width=125 },
+    { key="jewelry", label="JEWELRY", width=120 },
+}
+
+local function GetDetailFilterLabel(filterKey)
+    for _, filter in ipairs(DETAIL_FILTERS) do
+        if filter.key == filterKey then return filter.label end
+    end
+    return "ALL"
+end
+
+local function GetDetailPieceCategory(piece)
+    local link = piece and piece.link
+    if link and link ~= "" then
+        local weaponType = GetItemLinkWeaponType(link)
+        if weaponType and weaponType ~= WEAPONTYPE_NONE then return "weapons" end
+        local equipType = GetItemLinkEquipType(link)
+        if equipType == EQUIP_TYPE_RING or equipType == EQUIP_TYPE_NECK then
+            return "jewelry"
+        end
+        local armorType = GetItemLinkArmorType(link)
+        if armorType == ARMORTYPE_LIGHT then return "light" end
+        if armorType == ARMORTYPE_MEDIUM then return "medium" end
+        if armorType == ARMORTYPE_HEAVY then return "heavy" end
+    end
+    local key = piece and piece.key or ""
+    if key:match("^w:") then return "weapons" end
+    local equipType = tonumber(key:match("^e:(%d+)"))
+    if equipType == EQUIP_TYPE_RING or equipType == EQUIP_TYPE_NECK then
+        return "jewelry"
+    end
+    local armorType = tonumber(key:match(":a:(%d+)$"))
+    if armorType == ARMORTYPE_LIGHT then return "light" end
+    if armorType == ARMORTYPE_MEDIUM then return "medium" end
+    if armorType == ARMORTYPE_HEAVY then return "heavy" end
+    return "other"
+end
+
+function KPH:SeedSetTracker()
+    local saved = self.savedVariables
+    saved.trackedSetIds = saved.trackedSetIds or {}
+    if (saved.setTrackerSeedVersion or 0) >= 1 then return end
+    if saved.plannedSetId and saved.plannedSetId > 0 and
+       not ContainsId(saved.trackedSetIds, saved.plannedSetId) then
+        table.insert(saved.trackedSetIds, saved.plannedSetId)
+    end
+    for _, setName in ipairs(STARTER_SETS) do
+        for _, match in ipairs(self:GetBuildSetMatches(setName)) do
+            if zo_strlower(match.name) == zo_strlower(setName) and
+               not ContainsId(saved.trackedSetIds, match.id) then
+                table.insert(saved.trackedSetIds, match.id)
+                break
             end
         end
     end
-    return owned
+    saved.setTrackerSeeded = true
+    saved.setTrackerSeedVersion = 1
 end
 
-function KPH:RefreshPlannerOwnedCache()
-    local itemSetId = self.savedVariables and self.savedVariables.plannedSetId
-    self.plannerOwnedKeys = itemSetId and itemSetId > 0 and
-        self:GetPhysicalSetPieces(itemSetId) or {}
-end
-
-function KPH:ShowPlannerPieceFound(itemLink)
-    local itemName = zo_strformat("<<C:1>>", GetItemLinkName(itemLink))
-    local setName = select(2, GetItemLinkSetInfo(itemLink, false))
-    local message = CENTER_SCREEN_ANNOUNCE:CreateMessageParams(
-        CSA_CATEGORY_SMALL_TEXT, SOUNDS.QUEST_OBJECTIVE_INCREMENT)
-    message:SetSound(SOUNDS.QUEST_OBJECTIVE_INCREMENT)
-    message:SetText(string.format("KEH Planner: %s hittad!", itemName))
-    message:MarkSuppressIconFrame()
-    message:MarkShowImmediately()
-    CENTER_SCREEN_ANNOUNCE:QueueMessage(message)
-    d(string.format("[KEH] Planner: %s från %s hittad.", itemName,
-        zo_strformat("<<C:1>>", setName)))
-end
-
-function KPH:CheckPlannerInventoryItem(bagId, slotIndex, isNewItem,
-                                       stackCountChange)
-    if not self.savedVariables or not self.savedVariables.plannerNotifications then
-        return
+function KPH:AddSetTrackerSet(setId, openDetails)
+    setId = self:CanonicalizeSetId(setId)
+    if not setId or setId <= 0 or not GetItemSetName(setId) then return false end
+    local tracked = self.savedVariables.trackedSetIds
+    if not ContainsId(tracked, setId) then
+        table.insert(tracked, setId)
     end
-    if bagId ~= BAG_BACKPACK or (not isNewItem and (stackCountChange or 0) <= 0) then
-        return
+    self.savedVariables.plannedSetId = setId
+    self.selectedTrackedSetId = setId
+    if self.itemFinderWindow and not self.itemFinderWindow:IsHidden() then
+        self.setTrackerReturnToItemFinder = true
+        if self.itemFinderEdit then self.itemFinderEdit:LoseFocus() end
+        self.itemFinderWindow:SetHidden(true)
     end
-    local plannedSetId = self.savedVariables.plannedSetId
-    if not plannedSetId or plannedSetId <= 0 then return end
-    local itemLink = GetItemLink(bagId, slotIndex, LINK_STYLE_DEFAULT)
-    if not itemLink or itemLink == "" then return end
-    local hasSet, _, _, _, _, itemSetId = GetItemLinkSetInfo(itemLink, false)
-    if not hasSet or itemSetId ~= plannedSetId then return end
-
-    self.plannerOwnedKeys = self.plannerOwnedKeys or {}
-    local key = GetPieceKey(itemLink)
-    if self.plannerOwnedKeys[key] then return end
-    self.plannerOwnedKeys[key] = true
-    self:ShowPlannerPieceFound(itemLink)
+    self:CreateSetPlannerWindow()
     self:RefreshSetPlanner()
+    self.setPlannerWindow:SetHidden(false)
+    SCENE_MANAGER:SetInUIMode(true)
+    if openDetails ~= false then self:SelectSetTrackerTab("details") end
+    d(string.format("[KEH] Set Tracker: %s added.",
+        zo_strformat("<<C:1>>", GetItemSetName(setId))))
+    return true
 end
 
-function KPH:BuildSetPlannerText()
-    local itemSetId = self.savedVariables and self.savedVariables.plannedSetId
-    if not itemSetId or itemSetId <= 0 then
-        return "|cE89B35Inget set valt.|r\n\nSkriv |cFFFFFF/kehplan|r följt av en länkad set-del i chatten."
+function KPH:RemoveSelectedTrackedSet()
+    local setId = self.selectedTrackedSetId
+    if not setId then return end
+    for index, value in ipairs(self.savedVariables.trackedSetIds or {}) do
+        if value == setId then table.remove(self.savedVariables.trackedSetIds, index) break end
     end
+    self.selectedTrackedSetId = nil
+    self:SelectSetTrackerTab("list")
+end
 
-    local setName = GetItemSetName(itemSetId)
-    if not setName or setName == "" then
-        return "Det sparade setet kunde inte hittas. Välj setet igen med /kehplan."
-    end
-
-    local itemSetType = GetItemSetType(itemSetId)
-    local physical = self:GetPhysicalSetPieces(itemSetId)
-    local groups, groupOrder = {}, {}
-    local physicalCount, collectedCount, missingCount = 0, 0, 0
-    local numPieces = GetNumItemSetCollectionPieces(itemSetId)
-
-    for index = 1, numPieces do
-        local pieceId, slot = GetItemSetCollectionPieceInfo(itemSetId, index)
-        local itemLink = GetItemSetCollectionPieceItemLink(pieceId,
-            LINK_STYLE_DEFAULT, ITEM_TRAIT_TYPE_NONE, ITEM_FUNCTIONAL_QUALITY_MAGIC)
-        if itemLink and itemLink ~= "" then
-            local source = GetSource(itemSetType, itemLink)
-            if not groups[source] then
-                groups[source] = {}
-                table.insert(groupOrder, source)
-            end
-            local key = GetPieceKey(itemLink)
-            local marker
-            if physical[key] then
-                marker = "|c66CC66✓|r"
-                physicalCount = physicalCount + 1
-            elseif IsItemSetCollectionSlotUnlocked(itemSetId, slot) then
-                marker = "|cE89B35●|r"
-                collectedCount = collectedCount + 1
-            else
-                marker = "|cE05A5A✗|r"
-                missingCount = missingCount + 1
-            end
-            local pieceName = zo_strformat("<<C:1>>", GetItemLinkName(itemLink))
-            table.insert(groups[source], string.format("%s %s", marker, pieceName))
-        end
-    end
-
+function KPH:BuildSetTrackerDetails(setId)
+    if not setId then return "|cE89B35Select a set from MY SETS.|r" end
+    setId = self:CanonicalizeSetId(setId)
+    self.selectedTrackedSetId = setId
+    local view = self:GetSetTrackerViewModel(setId)
+    local setName = zo_strformat("<<C:1>>", view.name or "Unknown set")
     local lines = {
-        string.format("|cFFFFFF%s|r", zo_strformat("<<C:1>>", setName)),
-        string.format("|cAAAAAA%s|r", GetCollectionLocation(itemSetId)),
-        "",
-        string.format("|c66CC66✓ Fysisk: %d|r   |cE89B35● Collections: %d|r   |cE05A5A✗ Saknas: %d|r",
-            physicalCount, collectedCount, missingCount),
-        "",
+        string.format("|cFFFFFF%s|r", setName),
+        string.format("|cAAAAAA%s|r", self:GetSetCollectionLocation(setId)),
+        string.format("|c66CC66Physical: %d|r   |cE89B35Stickerbook: %d|r   |cAAAAAATotal types: %d|r",
+            view.physical, view.collected, view.total), "",
     }
-    for _, source in ipairs(groupOrder) do
-        table.insert(lines, string.format("|cD6B35A%s|r", source))
-        table.insert(lines, table.concat(groups[source], "   "))
+    local representative = view.rows[1] and
+        (view.rows[1].definition.link or
+            (view.rows[1].location and view.rows[1].location.link))
+    if representative and representative ~= "" and
+       type(GetItemLinkSetBonusInfo) == "function" then
+        local _, _, numBonuses = GetItemLinkSetInfo(representative, false)
+        table.insert(lines, "|cD6B35ASET BONUSES|r")
+        for bonusIndex = 1, numBonuses or 0 do
+            local required, description = GetItemLinkSetBonusInfo(
+                representative, false, bonusIndex)
+            if description and description ~= "" then
+                table.insert(lines, string.format("|cAAAAAA%d items:|r %s",
+                    required or 0, zo_strformat("<<C:1>>", description)))
+            end
+        end
         table.insert(lines, "")
     end
-    table.insert(lines, "|c888888Treasure chests och vissa quests kan ge andra delar än huvudregeln.|r")
+    local activeFilter = self.setTrackerDetailFilter or "all"
+    local filterLabel = GetDetailFilterLabel(activeFilter)
+    table.insert(lines, string.format("|cD6B35APIECES AND LOCATIONS — %s|r",
+        filterLabel))
+    local visibleRows = 0
+    for rowIndex = 1, math.max(view.total or 0, #(view.rows or {})) do
+        local row = view.rows and view.rows[rowIndex]
+        local category = row and row.definition and
+            GetDetailPieceCategory(row.definition) or "other"
+        if row and row.definition and
+           (activeFilter == "all" or category == activeFilter) then
+            visibleRows = visibleRows + 1
+            local piece, location = row.definition, row.location
+            local places = {}
+            AddLocationText(places, location)
+            if row.stickerbook then
+                table.insert(places, "Stickerbook / transmute")
+            end
+            local isOwned = #places > 0
+            local status = isOwned and "|c66CC66[OWNED]|r" or
+                "|cE05A5A[MISSING]|r"
+            local pieceName = piece.name or
+                (piece.link and zo_strformat("<<C:1>>", GetItemLinkName(piece.link))) or
+                string.format("Piece %d", rowIndex)
+            local placeText = isOwned and table.concat(places, "; ") or
+                (piece.link and self:GetSetPieceSource(setId, piece.link) or
+                    "Missing — craft at the set's crafting station")
+            table.insert(lines, string.format(
+                "%s |cFFFFFF%s|r  |cAAAAAA— %s|r", status, pieceName, placeText))
+        elseif not row and activeFilter == "all" then
+            visibleRows = visibleRows + 1
+            table.insert(lines, string.format(
+                "|cE05A5A[MISSING]|r |cFFFFFFPiece %d|r  |cAAAAAA— Piece data unavailable|r",
+                rowIndex))
+        end
+    end
+    if visibleRows == 0 then
+        table.insert(lines, "|cAAAAAANo pieces in this category.|r")
+    end
+    table.insert(lines, "")
+    table.insert(lines,
+        "|c777777Alt locations are cached after each character logs in with this version.|r")
     return table.concat(lines, "\n")
 end
 
-function KPH:RefreshSetPlanner()
-    if self.setPlannerText then
-        self.setPlannerText:SetText(self:BuildSetPlannerText())
+function KPH:SelectSetTrackerDetailFilter(filterKey)
+    self.setTrackerDetailFilter = filterKey or "all"
+    for key, button in pairs(self.setPlannerDetailFilterButtons or {}) do
+        local active = key == self.setTrackerDetailFilter
+        button:SetNormalFontColor(active and 1 or 0.65,
+            active and 0.85 or 0.65, active and 0.35 or 0.65, 1)
     end
+    if self.setPlannerText then
+        self.setPlannerText:SetText(self:BuildSetTrackerDetails(
+            self.selectedTrackedSetId))
+        self.setPlannerDetailsChild:SetHeight(math.max(620,
+            self.setPlannerText:GetTextHeight() + 20))
+    end
+end
+
+function KPH:RefreshSetTrackerList()
+    if not self.setPlannerListButtons then return end
+    local query = self.setPlannerSearchEdit and
+        zo_strlower(zo_strtrim(self.setPlannerSearchEdit:GetText() or "")) or ""
+    local visible = {}
+    for _, setId in ipairs(self.savedVariables.trackedSetIds or {}) do
+        local name = zo_strformat("<<C:1>>", GetItemSetName(setId) or "")
+        if query == "" or string.find(zo_strlower(name), query, 1, true) then
+            table.insert(visible, { id=setId, name=name })
+        end
+    end
+    self:EnsureSetTrackerListButtons(#visible)
+    for index, button in ipairs(self.setPlannerListButtons) do
+        local entry = visible[index]
+        if entry then
+            local color, status, stats = self:SetTrackerStatus(entry.id)
+            button.kehSetId = entry.id
+            button:SetText(string.format("|c%s%s|r  |cAAAAAA%s — %d/%d parts|r",
+                color, entry.name, status, stats.owned, stats.total))
+            button:SetHidden(false)
+        else
+            button.kehSetId = nil
+            button:SetHidden(true)
+        end
+    end
+    self.setPlannerListChild:SetHeight(math.max(#visible, 1) * 42)
+    if self.setPlannerListCounter then
+        self.setPlannerListCounter:SetText(string.format("SHOWING %d / %d SETS",
+            #visible, #(self.savedVariables.trackedSetIds or {})))
+    end
+end
+
+function KPH:SelectSetTrackerTab(tab)
+    self.setTrackerTab = tab
+    if not self.setPlannerListPanel then return end
+    self.setPlannerListPanel:SetHidden(tab ~= "list")
+    self.setPlannerDetailsPanel:SetHidden(tab ~= "details")
+    self.setPlannerListTab:SetNormalFontColor(tab == "list" and 1 or 0.7,
+        tab == "list" and 0.85 or 0.7, tab == "list" and 0.35 or 0.7, 1)
+    self.setPlannerDetailsTab:SetNormalFontColor(tab == "details" and 1 or 0.7,
+        tab == "details" and 0.85 or 0.7, tab == "details" and 0.35 or 0.7, 1)
+    self:RefreshSetPlanner()
 end
 
 function KPH:CreateSetPlannerWindow()
     if self.setPlannerWindow then return end
     local window = WINDOW_MANAGER:CreateTopLevelWindow(self.name .. "SetPlanner")
-    window:SetDimensions(760, 620)
+    window:SetDimensions(math.min(1040, GuiRoot:GetWidth() - 40),
+        math.min(780, GuiRoot:GetHeight() - 40))
     window:SetAnchor(CENTER, GuiRoot, CENTER, 0, 0)
     window:SetClampedToScreen(true)
     window:SetMouseEnabled(true)
     window:SetMovable(true)
     window:SetHidden(true)
-
     local backdrop = WINDOW_MANAGER:CreateControlFromVirtual(nil, window,
         "ZO_DefaultBackdrop")
     backdrop:SetAnchorFill(window)
-
     local title = WINDOW_MANAGER:CreateControl(nil, window, CT_LABEL)
     title:SetAnchor(TOPLEFT, window, TOPLEFT, 24, 18)
     title:SetFont("ZoFontWinH1")
-    title:SetText("KEH Set Planner")
-
-    local close = WINDOW_MANAGER:CreateControlFromVirtual(nil, window,
-        "ZO_CloseButton")
+    title:SetText("KEH Set Tracker")
+    local close = WINDOW_MANAGER:CreateControlFromVirtual(nil, window, "ZO_CloseButton")
     close:SetAnchor(TOPRIGHT, window, TOPRIGHT, -8, 8)
-    close:SetHandler("OnClicked", function() window:SetHidden(true) end)
+    close:SetHandler("OnClicked", function()
+        window:SetHidden(true)
+        if self.setTrackerReturnToItemFinder then
+            self.setTrackerReturnToItemFinder = false
+            self:ShowItemFinder()
+        else
+            SCENE_MANAGER:SetInUIMode(false)
+        end
+    end)
+    local refresh = WINDOW_MANAGER:CreateControl(nil, window, CT_BUTTON)
+    refresh:SetDimensions(190, 34)
+    refresh:SetAnchor(TOPRIGHT, window, TOPRIGHT, -54, 18)
+    refresh:SetFont("ZoFontGameBold")
+    refresh:SetText("REFRESH SETS")
+    refresh:SetNormalFontColor(0.45, 0.85, 1, 1)
+    refresh:SetMouseOverFontColor(1, 1, 1, 1)
+    refresh:SetHandler("OnClicked", function()
+        self:RefreshSetPlanner()
+        d("[KEH] Set ownership refreshed.")
+    end)
+    local listTab = WINDOW_MANAGER:CreateControl(nil, window, CT_BUTTON)
+    listTab:SetDimensions(170, 36)
+    listTab:SetAnchor(TOPLEFT, window, TOPLEFT, 50, 58)
+    listTab:SetFont("ZoFontGameBold")
+    listTab:SetText("MY SETS")
+    local detailsTab = WINDOW_MANAGER:CreateControl(nil, window, CT_BUTTON)
+    detailsTab:SetDimensions(170, 36)
+    detailsTab:SetAnchor(LEFT, listTab, RIGHT, 16, 0)
+    detailsTab:SetFont("ZoFontGameBold")
+    detailsTab:SetText("DETAILS")
 
-    local textControl = WINDOW_MANAGER:CreateControl(nil, window, CT_LABEL)
-    textControl:SetAnchor(TOPLEFT, window, TOPLEFT, 24, 62)
-    textControl:SetAnchor(BOTTOMRIGHT, window, BOTTOMRIGHT, -24, -22)
-    textControl:SetFont("ZoFontGame")
-    textControl:SetVerticalAlignment(TEXT_ALIGN_TOP)
-    textControl:SetHorizontalAlignment(TEXT_ALIGN_LEFT)
-
-    self.setPlannerWindow = window
-    self.setPlannerText = textControl
+    local listPanel = WINDOW_MANAGER:CreateControl(nil, window, CT_CONTROL)
+    listPanel:SetAnchor(TOPLEFT, window, TOPLEFT, 24, 104)
+    listPanel:SetAnchor(BOTTOMRIGHT, window, BOTTOMRIGHT, -24, -24)
+    local help = WINDOW_MANAGER:CreateControl(nil, listPanel, CT_LABEL)
+    help:SetAnchor(TOPLEFT, listPanel, TOPLEFT, 8, 0)
+    help:SetFont("ZoFontGame")
+    help:SetText("Filter tracked sets by name:")
+    local searchBG = WINDOW_MANAGER:CreateControl(nil, listPanel, CT_BACKDROP)
+    searchBG:SetDimensions(520, 38)
+    searchBG:SetAnchor(TOPLEFT, listPanel, TOPLEFT, 8, 34)
+    searchBG:SetCenterColor(0, 0, 0, 0.9)
+    searchBG:SetEdgeColor(0.7, 0.65, 0.45, 1)
+    local searchEdit = WINDOW_MANAGER:CreateControl(
+        self.name .. "SetTrackerSearch", searchBG, CT_EDITBOX)
+    searchEdit:SetAnchor(TOPLEFT, searchBG, TOPLEFT, 10, 4)
+    searchEdit:SetDimensions(500, 30)
+    searchEdit:SetFont("ZoFontGame")
+    searchEdit:SetColor(1, 1, 1, 1)
+    searchEdit:SetMaxInputChars(100)
+    searchEdit:SetMouseEnabled(true)
+    searchEdit:SetEditEnabled(true)
+    searchEdit:SetHandler("OnMouseDown", function(control) control:TakeFocus() end)
+    searchEdit:SetHandler("OnTextChanged", function()
+        self:RefreshSetTrackerList()
+    end)
+    local counter = WINDOW_MANAGER:CreateControl(nil, listPanel, CT_LABEL)
+    counter:SetDimensions(370, 30)
+    counter:SetAnchor(TOPRIGHT, listPanel, TOPRIGHT, -8, 40)
+    counter:SetFont("ZoFontGameBold")
+    counter:SetHorizontalAlignment(TEXT_ALIGN_RIGHT)
+    counter:SetColor(0.75, 0.75, 0.75, 1)
+    local listScroll = WINDOW_MANAGER:CreateControlFromVirtual(
+        self.name .. "SetTrackerListScroll", listPanel, "ZO_ScrollContainer")
+    listScroll:SetAnchor(TOPLEFT, listPanel, TOPLEFT, 8, 82)
+    listScroll:SetAnchor(BOTTOMRIGHT, listPanel, BOTTOMRIGHT, -8, -8)
+    local listChild = GetControl(listScroll, "ScrollChild")
+    listChild:SetWidth(940)
+    local listButtons = {}
+    for index = 1, 80 do
+        local button = WINDOW_MANAGER:CreateControl(
+            self.name .. "TrackedSet" .. index, listChild, CT_BUTTON)
+        button:SetDimensions(940, 40)
+        button:SetAnchor(TOPLEFT, listChild, TOPLEFT, 0, (index - 1) * 42)
+        button:SetFont("ZoFontGame")
+        button:SetHorizontalAlignment(TEXT_ALIGN_LEFT)
+        button:SetHandler("OnClicked", function(control)
+            self.selectedTrackedSetId = control.kehSetId
+            self.savedVariables.plannedSetId = control.kehSetId
+            self:SelectSetTrackerTab("details")
+        end)
+        button:SetHidden(true)
+        listButtons[index] = button
+    end
+    listChild:SetHeight(80 * 42)
+    local detailsPanel = WINDOW_MANAGER:CreateControl(nil, window, CT_CONTROL)
+    detailsPanel:SetAnchor(TOPLEFT, window, TOPLEFT, 24, 104)
+    detailsPanel:SetAnchor(BOTTOMRIGHT, window, BOTTOMRIGHT, -24, -24)
+    local remove = WINDOW_MANAGER:CreateControl(nil, detailsPanel, CT_BUTTON)
+    remove:SetDimensions(180, 34)
+    remove:SetAnchor(TOPRIGHT, detailsPanel, TOPRIGHT, -8, 0)
+    remove:SetFont("ZoFontGameBold")
+    remove:SetText("REMOVE FROM LIST")
+    remove:SetNormalFontColor(0.9, 0.35, 0.35, 1)
+    remove:SetHandler("OnClicked", function() self:RemoveSelectedTrackedSet() end)
+    local detailFilterButtons = {}
+    local detailFilterX = 8
+    for index, filter in ipairs(DETAIL_FILTERS) do
+        local filterKey = filter.key
+        local button = WINDOW_MANAGER:CreateControl(
+            self.name .. "SetDetailFilter" .. index, detailsPanel, CT_BUTTON)
+        button:SetDimensions(filter.width, 32)
+        button:SetAnchor(TOPLEFT, detailsPanel, TOPLEFT, detailFilterX, 40)
+        button:SetFont("ZoFontGameBold")
+        button:SetText(filter.label)
+        button:SetHandler("OnClicked", function()
+            self:SelectSetTrackerDetailFilter(filterKey)
+        end)
+        detailFilterButtons[filterKey] = button
+        detailFilterX = detailFilterX + filter.width + 8
+    end
+    local scroll = WINDOW_MANAGER:CreateControlFromVirtual(
+        self.name .. "SetTrackerScroll", detailsPanel, "ZO_ScrollContainer")
+    scroll:SetAnchor(TOPLEFT, detailsPanel, TOPLEFT, 8, 80)
+    scroll:SetAnchor(BOTTOMRIGHT, detailsPanel, BOTTOMRIGHT, -8, -8)
+    local child = GetControl(scroll, "ScrollChild")
+    local text = WINDOW_MANAGER:CreateControl(nil, child, CT_LABEL)
+    text:SetAnchor(TOPLEFT, child, TOPLEFT, 0, 0)
+    text:SetWidth(920)
+    text:SetFont("ZoFontGameSmall")
+    text:SetVerticalAlignment(TEXT_ALIGN_TOP)
+    text:SetHorizontalAlignment(TEXT_ALIGN_LEFT)
+    listTab:SetHandler("OnClicked", function() self:SelectSetTrackerTab("list") end)
+    detailsTab:SetHandler("OnClicked", function() self:SelectSetTrackerTab("details") end)
+    self.setPlannerWindow, self.setPlannerListPanel = window, listPanel
+    self.setPlannerDetailsPanel = detailsPanel
+    self.setPlannerListTab, self.setPlannerDetailsTab = listTab, detailsTab
+    self.setPlannerListButtons, self.setPlannerDetailsChild = listButtons, child
+    self.setPlannerListChild = listChild
+    self.setPlannerSearchEdit = searchEdit
+    self.setPlannerListCounter = counter
+    self.setPlannerText = text
+    self.setPlannerRefreshButton = refresh
+    self.setPlannerDetailFilterButtons = detailFilterButtons
+    self.setTrackerDetailFilter = self.setTrackerDetailFilter or "all"
+    self:SelectSetTrackerDetailFilter(self.setTrackerDetailFilter)
+    self:SelectSetTrackerTab("list")
 end
 
-function KPH:SelectPlannedSetId(itemSetId)
-    if not itemSetId or itemSetId <= 0 then return false end
-    local setName = GetItemSetName(itemSetId)
-    if not setName or setName == "" then return false end
-    self.savedVariables.plannedSetId = itemSetId
-    self:RefreshPlannerOwnedCache()
-    d(string.format("[KEH] Planner valt: %s", zo_strformat("<<C:1>>", setName)))
-    self:CreateSetPlannerWindow()
-    self:RefreshSetPlanner()
-    self.setPlannerWindow:SetHidden(false)
-    return true
+function KPH:EnsureSetTrackerListButtons(count)
+    local buttons = self.setPlannerListButtons
+    local child = self.setPlannerListChild
+    if not buttons or not child then return end
+    for index = #buttons + 1, count do
+        local button = WINDOW_MANAGER:CreateControl(
+            self.name .. "TrackedSet" .. index, child, CT_BUTTON)
+        button:SetDimensions(940, 40)
+        button:SetAnchor(TOPLEFT, child, TOPLEFT, 0, (index - 1) * 42)
+        button:SetFont("ZoFontGame")
+        button:SetHorizontalAlignment(TEXT_ALIGN_LEFT)
+        button:SetHandler("OnClicked", function(control)
+            self.selectedTrackedSetId = control.kehSetId
+            self.savedVariables.plannedSetId = control.kehSetId
+            self:SelectSetTrackerTab("details")
+        end)
+        button:SetHidden(true)
+        buttons[index] = button
+    end
+    child:SetHeight(math.max(count, 1) * 42)
+end
+
+function KPH:SelectPlannedSetId(setId)
+    return self:AddSetTrackerSet(setId, true)
 end
 
 function KPH:SelectPlannedSet(itemLink)
     if type(itemLink) ~= "string" or not string.find(itemLink, "|H", 1, true) then
         return false
     end
-    local hasSet, _, _, _, _, itemSetId = GetItemLinkSetInfo(itemLink, false)
-    if not hasSet then return false end
-    return self:SelectPlannedSetId(itemSetId)
+    local hasSet, _, _, _, _, setId = GetItemLinkSetInfo(itemLink, false)
+    return hasSet and self:SelectPlannedSetId(setId) or false
 end
 
 function KPH:FindPlannedSetByName(searchText)
-    local needle = zo_strlower(zo_strtrim(searchText or ""))
-    if needle == "" then return false end
-    local matches, exactMatch = {}, nil
-    local itemSetId = GetNextItemSetCollectionId(nil)
-    while itemSetId do
-        local setName = GetItemSetName(itemSetId)
-        local loweredName = zo_strlower(setName or "")
-        if loweredName == needle then
-            exactMatch = itemSetId
-            break
-        elseif string.find(loweredName, needle, 1, true) then
-            table.insert(matches, { id = itemSetId, name = setName })
-        end
-        itemSetId = GetNextItemSetCollectionId(itemSetId)
+    local matches = self:GetBuildSetMatches(searchText)
+    if matches[1] and (matches[1].exact or #matches == 1) then
+        return self:SelectPlannedSetId(matches[1].id)
     end
-
-    if exactMatch then return self:SelectPlannedSetId(exactMatch) end
-    if #matches == 1 then return self:SelectPlannedSetId(matches[1].id) end
-    if #matches > 1 then
-        d(string.format("[KEH] Flera set matchar '%s':", searchText))
-        for index = 1, math.min(10, #matches) do
-            d(string.format("  %s", zo_strformat("<<C:1>>", matches[index].name)))
-        end
-        d("[KEH] Skriv ett mer exakt setnamn.")
-        return false
-    end
-    d(string.format("[KEH] Inget Collections-set matchar '%s'.", searchText))
+    d(#matches > 1 and "[KEH] Multiple sets match. Use a more exact name." or
+        "[KEH] No matching set found.")
     return false
 end
 
-function KPH:InitializeSetPlanner()
-    SLASH_COMMANDS["/kehplan"] = function(text)
-        text = zo_strtrim(text or "")
-        if text == "" then
-            d("[KEH] Använd: /kehplan Setnamn eller /kehplan [länkad set-del]")
-            return
-        end
-        if not self:SelectPlannedSet(text) then
-            self:FindPlannedSetByName(text)
-        end
+function KPH:ShowPlannerPieceFound(itemLink)
+    local message = CENTER_SCREEN_ANNOUNCE:CreateMessageParams(
+        CSA_CATEGORY_SMALL_TEXT, SOUNDS.QUEST_OBJECTIVE_INCREMENT)
+    message:SetText(string.format("KEH Set Tracker: %s found!",
+        zo_strformat("<<C:1>>", GetItemLinkName(itemLink))))
+    message:MarkSuppressIconFrame()
+    message:MarkShowImmediately()
+    CENTER_SCREEN_ANNOUNCE:QueueMessage(message)
+end
+
+function KPH:CheckPlannerInventoryItem(bagId, slotIndex, isNewItem, stackCountChange)
+    if not self.savedVariables or not self.savedVariables.plannerNotifications or
+       bagId ~= BAG_BACKPACK or (not isNewItem and (stackCountChange or 0) <= 0) then
+        return
     end
-    SLASH_COMMANDS["/kehplanner"] = function()
-        self:CreateSetPlannerWindow()
-        self:RefreshSetPlanner()
-        self.setPlannerWindow:SetHidden(not self.setPlannerWindow:IsHidden())
+    local link = GetItemLink(bagId, slotIndex, LINK_STYLE_DEFAULT)
+    if not link or link == "" then return end
+    local hasSet, _, _, _, _, setId = GetItemLinkSetInfo(link, false)
+    setId = self:CanonicalizeSetId(setId)
+    if hasSet and ContainsId(self.savedVariables.trackedSetIds, setId) then
+        self:ShowPlannerPieceFound(link)
     end
-    EVENT_MANAGER:RegisterForEvent(self.name .. "PlannerCollection",
-        EVENT_ITEM_SET_COLLECTION_UPDATED, function()
-            if self.setPlannerWindow and not self.setPlannerWindow:IsHidden() then
-                self:RefreshSetPlanner()
-            end
-        end)
-    EVENT_MANAGER:RegisterForEvent(self.name .. "PlannerInventory",
-        EVENT_INVENTORY_SINGLE_SLOT_UPDATE,
-        function(_, bagId, slotIndex, isNewItem, _, _, stackCountChange)
-            zo_callLater(function()
-                self:CheckPlannerInventoryItem(bagId, slotIndex, isNewItem,
-                    stackCountChange)
-            end, 1)
-        end)
-    EVENT_MANAGER:RegisterForEvent(self.name .. "PlannerActivated",
-        EVENT_PLAYER_ACTIVATED, function()
-            EVENT_MANAGER:UnregisterForEvent(self.name .. "PlannerActivated",
-                EVENT_PLAYER_ACTIVATED)
-            self:RefreshPlannerOwnedCache()
-        end)
 end

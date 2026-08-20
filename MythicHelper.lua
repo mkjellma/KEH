@@ -23,7 +23,7 @@ local function GetDropHint(antiquityId)
     local leadName=zo_strlower(GetAntiquityName(antiquityId) or "")
     local fallback=LEAD_HINT_FALLBACKS[leadName]
     if fallback then return fallback end
-    return "Exakt dropkälla kräver LibLeadDrop"
+    return "Exact drop source requires LibLeadDrop"
 end
 
 function KPH:BuildMythicIndex()
@@ -63,7 +63,7 @@ end
 
 function KPH:BuildMythicText(setId)
     if not setId or setId <= 0 then
-        return "|cE89B35Sök efter en Mythic ovan.|r\n\nExempel: Oakensoul, Pale Order eller Velothi."
+        return "|cE89B35Search for a Mythic above.|r\n\nExamples: Oakensoul, Pale Order or Velothi."
     end
     local total = GetNumAntiquitySetAntiquities(setId)
     local owned = 0
@@ -74,21 +74,46 @@ function KPH:BuildMythicText(setId)
         local hasLead = DoesAntiquityHaveLead(antiquityId)
         local marker,status
         if recovered then
-            marker,status="|c66CC66✓|r","|c66CC66HITTAD|r"
+            marker,status="|c66CC66✓|r","|c66CC66FOUND|r"
             owned=owned+1
-        elseif hasLead then marker,status="|cE89B35●|r","|cE89B35LEAD FINNS – SCRYA|r"
-        else marker,status="|cE05A5A✗|r","|cE05A5ASAKNAS – LETA|r" end
+        elseif hasLead then marker,status="|cE89B35●|r","|cE89B35LEAD FOUND – CLICK TO SCRY|r"
+        else marker,status="|cE05A5A✗|r","|cE05A5AMISSING – SEARCH|r" end
         local zoneId=GetAntiquityZoneId(antiquityId)
-        local zone=zoneId and Clean(GetZoneNameById(zoneId)) or "Okänd zon"
+        local zone=zoneId and Clean(GetZoneNameById(zoneId)) or "Unknown zone"
         table.insert(lines,string.format("%s |cFFFFFF%s|r  %s",marker,Clean(GetAntiquityName(antiquityId)),status))
         table.insert(lines,string.format("    |c8CC8FF%s|r — %s",zone,GetDropHint(antiquityId)))
         table.insert(lines,"")
     end
-    table.insert(lines,2,string.format("|cAAAAAAFramsteg: %d/%d delar|r",owned,total))
+    table.insert(lines,2,string.format("|cAAAAAAProgress: %d/%d pieces|r",owned,total))
     if not (LibLeadDrop and LibLeadDrop.getLeadDropHint) then
-        table.insert(lines,"|c888888Installera LibLeadDrop för exakta dropkällor för alla leads.|r")
+        table.insert(lines,"|c888888Install LibLeadDrop for exact drop sources for every lead.|r")
     end
     return table.concat(lines,"\n")
+end
+
+function KPH:RefreshMythicLeadButtons(setId)
+    if not self.mythicLeadButtons then return end
+    local total=setId and GetNumAntiquitySetAntiquities(setId) or 0
+    for index,button in ipairs(self.mythicLeadButtons) do
+        if index<=total then
+            local antiquityId=GetAntiquitySetAntiquityId(setId,index)
+            button.kehAntiquityId=antiquityId
+            button:SetEnabled(DoesAntiquityHaveLead(antiquityId))
+            button:SetHidden(false)
+        else
+            button.kehAntiquityId=nil
+            button:SetHidden(true)
+        end
+    end
+end
+
+function KPH:StartMythicScrying(antiquityId)
+    if not antiquityId or not DoesAntiquityHaveLead(antiquityId) then return end
+    local canScry=not CanScryForAntiquity or CanScryForAntiquity(antiquityId)
+    if canScry and self.mythicHelperWindow then
+        self.mythicHelperWindow:SetHidden(true)
+    end
+    ScryForAntiquity(antiquityId)
 end
 
 function KPH:SearchMythic(text)
@@ -96,12 +121,17 @@ function KPH:SearchMythic(text)
     if match then
         self.savedVariables.plannedMythicSetId=match.id
         self.mythicHelperText:SetText(self:BuildMythicText(match.id))
+        self:RefreshMythicLeadButtons(match.id)
         self:SelectMythicTab("details")
     elseif #matches>1 then
         local names={}
         for i=1,math.min(12,#matches) do table.insert(names,"• "..matches[i].name) end
-        self.mythicHelperText:SetText("|cE89B35Flera Mythics matchar. Skriv mer exakt:|r\n\n"..table.concat(names,"\n"))
-    else self.mythicHelperText:SetText("|cE05A5AIngen Mythic hittades.|r") end
+        self.mythicHelperText:SetText("|cE89B35Multiple Mythics match. Enter a more exact name:|r\n\n"..table.concat(names,"\n"))
+        self:RefreshMythicLeadButtons(nil)
+    else
+        self.mythicHelperText:SetText("|cE05A5ANo Mythic found.|r")
+        self:RefreshMythicLeadButtons(nil)
+    end
 end
 
 function KPH:GetMythicRecoveredCount(setId)
@@ -199,10 +229,10 @@ function KPH:CreateMythicHelperWindow()
     close:SetAnchor(TOPRIGHT,w,TOPRIGHT,-8,8) close:SetHandler("OnClicked",function() w:SetHidden(true) end)
     local detailsTab=WINDOW_MANAGER:CreateControl(nil,w,CT_BUTTON)
     detailsTab:SetDimensions(180,32) detailsTab:SetAnchor(TOPLEFT,w,TOPLEFT,24,58)
-    detailsTab:SetFont("ZoFontGameBold") detailsTab:SetText("DETALJER")
+    detailsTab:SetFont("ZoFontGameBold") detailsTab:SetText("DETAILS")
     local listTab=WINDOW_MANAGER:CreateControl(nil,w,CT_BUTTON)
     listTab:SetDimensions(180,32) listTab:SetAnchor(LEFT,detailsTab,RIGHT,8,0)
-    listTab:SetFont("ZoFontGameBold") listTab:SetText("ALLA MYTHICS")
+    listTab:SetFont("ZoFontGameBold") listTab:SetText("ALL MYTHICS")
 
     local detailsPanel=WINDOW_MANAGER:CreateControl(nil,w,CT_CONTROL)
     detailsPanel:SetAnchor(TOPLEFT,w,TOPLEFT,0,96)
@@ -213,7 +243,7 @@ function KPH:CreateMythicHelperWindow()
     edit:SetAnchorFill(editBg) edit:SetMaxInputChars(80)
     edit:SetHandler("OnEnter",function(c) self:SearchMythic(c:GetText()) end)
     local search=WINDOW_MANAGER:CreateControlFromVirtual(nil,detailsPanel,"ZO_DefaultButton")
-    search:SetDimensions(190,38) search:SetAnchor(LEFT,editBg,RIGHT,14,0) search:SetText("Sök Mythic")
+    search:SetDimensions(190,38) search:SetAnchor(LEFT,editBg,RIGHT,14,0) search:SetText("Search Mythic")
     search:SetHandler("OnClicked",function() self:SearchMythic(edit:GetText()) end)
     local result=WINDOW_MANAGER:CreateControl(nil,detailsPanel,CT_LABEL)
     result:SetAnchor(TOPLEFT,detailsPanel,TOPLEFT,24,58)
@@ -227,7 +257,7 @@ function KPH:CreateMythicHelperWindow()
     local listHelp=WINDOW_MANAGER:CreateControl(nil,listPanel,CT_LABEL)
     listHelp:SetAnchor(TOPLEFT,listPanel,TOPLEFT,24,4)
     listHelp:SetFont("ZoFontGame")
-    listHelp:SetText("|c66CC66Grön = komplett|r   |cE89B35Orange = påbörjad|r   |cE05A5ARöd = inga delar|r   Klicka för detaljer")
+    listHelp:SetText("|c66CC66Green = complete|r   |cE89B35Orange = partial|r   |cE05A5ARed = no pieces|r   Click for details")
     local entries=self:BuildMythicIndex()
     local columns=3
     local rows=math.ceil(#entries/columns)
@@ -247,6 +277,7 @@ function KPH:CreateMythicHelperWindow()
             self.savedVariables.plannedMythicSetId=control.kehMythicSetId
             edit:SetText(control.kehMythicName)
             result:SetText(self:BuildMythicText(control.kehMythicSetId))
+            self:RefreshMythicLeadButtons(control.kehMythicSetId)
             self:SelectMythicTab("details")
         end)
         button:SetHandler("OnMouseEnter",function(control)
@@ -262,6 +293,28 @@ function KPH:CreateMythicHelperWindow()
     self.mythicDetailsPanel,self.mythicListPanel=detailsPanel,listPanel
     self.mythicDetailsTab,self.mythicListTab=detailsTab,listTab
     self.mythicHelperWindow,self.mythicHelperEdit,self.mythicHelperText=w,edit,result
+    self.mythicLeadButtons={}
+    for index=1,5 do
+        local button=WINDOW_MANAGER:CreateControl(
+            self.name.."MythicLeadButton"..index,detailsPanel,CT_BUTTON)
+        button:SetDimensions(812,70)
+        button:SetAnchor(TOPLEFT,detailsPanel,TOPLEFT,24,126+(index-1)*72)
+        button:SetHandler("OnClicked",function(control)
+            self:StartMythicScrying(control.kehAntiquityId)
+        end)
+        button:SetHandler("OnMouseEnter",function(control)
+            if control.kehAntiquityId then
+                InitializeTooltip(InformationTooltip,control,RIGHT,-8,0,LEFT)
+                SetTooltipText(InformationTooltip,
+                    "Click to start scrying")
+            end
+        end)
+        button:SetHandler("OnMouseExit",function()
+            ClearTooltip(InformationTooltip)
+        end)
+        button:SetHidden(true)
+        table.insert(self.mythicLeadButtons,button)
+    end
     self:SelectMythicTab("details")
 end
 
@@ -271,6 +324,7 @@ function KPH:ShowMythicHelper(searchText)
         self.mythicHelperEdit:SetText(searchText) self:SearchMythic(searchText)
     else
         self.mythicHelperText:SetText(self:BuildMythicText(self.savedVariables.plannedMythicSetId))
+        self:RefreshMythicLeadButtons(self.savedVariables.plannedMythicSetId)
         self.mythicHelperEdit:TakeFocus()
     end
 end
@@ -281,6 +335,7 @@ function KPH:InitializeMythicHelper()
         EVENT_MANAGER:RegisterForEvent(self.name.."MythicUpdated",EVENT_ANTIQUITY_LEAD_ACQUIRED,function()
             if self.mythicHelperWindow and not self.mythicHelperWindow:IsHidden() then
                 self.mythicHelperText:SetText(self:BuildMythicText(self.savedVariables.plannedMythicSetId))
+                self:RefreshMythicLeadButtons(self.savedVariables.plannedMythicSetId)
                 self:RefreshMythicList()
             end
         end)

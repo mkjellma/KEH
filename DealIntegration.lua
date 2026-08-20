@@ -13,7 +13,7 @@ function KPH:GetOrCreatePriceComparison(rowControl)
     local timeControl = rowControl:GetNamedChild("TimeRemaining")
     if not timeControl then return nil end
 
-    -- Tiden flyttas lite uppåt och prisjämförelsen får en egen rad under den.
+    -- Move the time upward and give the price comparison its own row.
     if not rowControl.kphTimeAdjusted then
         local isValid, point, relativeTo, relativePoint, offsetX, offsetY =
             timeControl:GetAnchor(0)
@@ -51,16 +51,16 @@ function KPH:GetOrCreatePriceComparison(rowControl)
         local priceData = control.priceData
         if not priceData then return end
         InitializeTooltip(InformationTooltip, control, LEFT, -8, 0)
-        InformationTooltip:AddLine("KEH prisjämförelse", "ZoFontWinH2",
+        InformationTooltip:AddLine("KEH price comparison", "ZoFontWinH2",
             1, 0.82, 0.25, CENTER, MODIFY_TEXT_TYPE_NONE,
             TEXT_ALIGN_CENTER, true)
-        InformationTooltip:AddLine(string.format("Normalt marknadspris: %s/st",
+        InformationTooltip:AddLine(string.format("Market price: %s each",
             self:FormatGold(priceData.marketPrice)))
-        InformationTooltip:AddLine(string.format("Annonspris: %s/st",
+        InformationTooltip:AddLine(string.format("Listing price: %s each",
             self:FormatGold(priceData.listingPrice)))
         InformationTooltip:AddLine(priceData.explanation)
-        InformationTooltip:AddLine(string.format("Prisunderlag: %s",
-            priceData.confidence == "low" and "osäkert" or "TTC/KPH"))
+        InformationTooltip:AddLine(string.format("Price data: %s",
+            priceData.confidence == "low" and "uncertain" or "TTC/KEH"))
     end)
     label:SetHandler("OnMouseExit", function()
         ClearTooltip(InformationTooltip)
@@ -96,29 +96,29 @@ function KPH:UpdatePriceComparison(rowControl, result)
     local marketPrice, confidence = self:GetTTCSuggestedPrice(itemLink)
     if not marketPrice or marketPrice <= 0 then return end
 
-    -- Positivt betyder att annonsen är billigare än normalpriset.
+    -- Positive means the listing is cheaper than market price.
     local percent = ((marketPrice - listingPrice) / marketPrice) * 100
     local label = self:GetOrCreatePriceComparison(rowControl)
     if not label then return end
 
     label:SetText(string.format("%+.1f%%", percent))
     if confidence == "low" then
-        label:SetColor(0.95, 0.60, 0.15, 1) -- orange: osäkert underlag
+        label:SetColor(0.95, 0.60, 0.15, 1) -- orange: uncertain data
     elseif percent > 0.05 then
-        label:SetColor(0.20, 0.90, 0.25, 1) -- grön: under normalpris
+        label:SetColor(0.20, 0.90, 0.25, 1) -- green: below market
     elseif percent < -0.05 then
-        label:SetColor(1.00, 0.20, 0.20, 1) -- röd: över normalpris
+        label:SetColor(1.00, 0.20, 0.20, 1) -- red: above market
     else
         label:SetColor(0.85, 0.85, 0.85, 1)
     end
 
     local explanation
     if percent > 0.05 then
-        explanation = string.format("Annonsen ligger %.1f%% under normalpris.", percent)
+        explanation = string.format("The listing is %.1f%% below market price.", percent)
     elseif percent < -0.05 then
-        explanation = string.format("Annonsen ligger %.1f%% över normalpris.", -percent)
+        explanation = string.format("The listing is %.1f%% above market price.", -percent)
     else
-        explanation = "Annonsen ligger ungefär på normalpris."
+        explanation = "The listing is approximately at market price."
     end
     label.priceData = {
         marketPrice = marketPrice,
@@ -143,8 +143,8 @@ function KPH:InstallPriceComparisonHook()
     local dataTypes = TRADING_HOUSE.searchResultsList.dataTypes
     if not dataTypes then return end
 
-    -- Direkt åtkomst till dataTypes gör att både vanliga och guild-specifika
-    -- sökresultat kan få samma radvisning. Typ 1 och 3 täcker resultaten.
+    -- Direct dataTypes access lets normal and guild-specific search results
+    -- share the same row display. Types 1 and 3 cover the result lists.
     for _, dataTypeIndex in ipairs({ 1, 3 }) do
         local dataType = dataTypes[dataTypeIndex]
         if dataType and type(dataType.setupCallback) == "function" and
@@ -164,15 +164,15 @@ function KPH:InstallPriceComparisonHook()
 
     if hookedCount > 0 then
         self:RefreshTradingHouseRows()
-        self:DebugLog(string.format("Prisjämförelse kopplad till %d radtyper",
+        self:DebugLog(string.format("Price comparison attached to %d row types",
             hookedCount))
     end
 end
 
 function KPH:InitializeDealIntegration()
-    -- Trading House skapar sin resultatrad först när ett svar tas emot.
-    -- Installera därför callbacken här, och försök igen vid varje svar om en
-    -- annan addon eller UI-laddningen har ersatt/listat om radtypen.
+    -- Trading House creates result rows only after receiving a response.
+    -- Install the callback here and retry after each response in case another
+    -- addon or UI reload has replaced or re-registered the row type.
     EVENT_MANAGER:RegisterForEvent(self.name .. "PriceComparison",
         EVENT_TRADING_HOUSE_RESPONSE_RECEIVED, function()
             self:InstallPriceComparisonHook()

@@ -5,9 +5,9 @@ local ARMORY_FILTER_ONLY = 2
 local ARMORY_FILTER_EXCLUDE = 3
 
 local ARMORY_FILTER_LABELS = {
-    [ARMORY_FILTER_ALL] = "Alla",
+    [ARMORY_FILTER_ALL] = "All",
     [ARMORY_FILTER_ONLY] = "Armory",
-    [ARMORY_FILTER_EXCLUDE] = "Ej Armory",
+    [ARMORY_FILTER_EXCLUDE] = "Not Armory",
 }
 
 local LOCK_FILTER_ALL = 1
@@ -15,9 +15,9 @@ local LOCK_FILTER_ONLY = 2
 local LOCK_FILTER_EXCLUDE = 3
 
 local LOCK_FILTER_LABELS = {
-    [LOCK_FILTER_ALL] = "Alla",
-    [LOCK_FILTER_ONLY] = "Låsta",
-    [LOCK_FILTER_EXCLUDE] = "Olåsta",
+    [LOCK_FILTER_ALL] = "All",
+    [LOCK_FILTER_ONLY] = "Locked",
+    [LOCK_FILTER_EXCLUDE] = "Unlocked",
 }
 
 function KPH:IsArmoryItem(slotData)
@@ -118,7 +118,7 @@ function KPH:CreateLegacyArmoryFilterButtons()
     button:SetHandler("OnMouseEnter", function(control)
         InitializeTooltip(InformationTooltip, control, BOTTOM, 0, -4)
         SetTooltipText(InformationTooltip,
-            "Filtrera föremål som används i en sparad Armory-build.")
+            "Filter items used by a saved Armory build.")
     end)
     button:SetHandler("OnMouseExit", function()
         ClearTooltip(InformationTooltip)
@@ -134,7 +134,7 @@ function KPH:CreateLegacyArmoryFilterButtons()
     lockButton:SetHandler("OnMouseEnter", function(control)
         InitializeTooltip(InformationTooltip, control, BOTTOM, 0, -4)
         SetTooltipText(InformationTooltip,
-            "Filtrera föremål efter ESO:s spelar-lås.")
+            "Filter items by ESO's player lock.")
     end)
     lockButton:SetHandler("OnMouseExit", function()
         ClearTooltip(InformationTooltip)
@@ -664,12 +664,12 @@ function KPH:InitializeInventoryIntegration()
     SLASH_COMMANDS["/kehfilters"]=function() self:ToggleInventoryManagerPanel() end
     SLASH_COMMANDS["/keharmory"] = function()
         self:CycleArmoryFilter()
-        d(string.format("[KEH] Inventoryfilter: %s",
+        d(string.format("[KEH] Inventory filter: %s",
             ARMORY_FILTER_LABELS[self.armoryFilterMode]))
     end
     SLASH_COMMANDS["/kehlock"] = function()
         self:CycleLockFilter()
-        d(string.format("[KEH] Låsfilter: %s",
+        d(string.format("[KEH] Lock filter: %s",
             LOCK_FILTER_LABELS[self.lockFilterMode]))
     end
     EVENT_MANAGER:RegisterForEvent(self.name .. "ArmoryProtectionSlot",

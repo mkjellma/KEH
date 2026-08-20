@@ -1,5 +1,38 @@
 # Changelog
 
+## Unreleased
+
+- Rebuilt Set Tracker ownership around a shared LibSets-canonical model. Worn,
+  backpack, bank and migrated character snapshots now feed the same data used
+  by the tracker list, details and Build Planner. Owned sets are discovered
+  automatically, the list is scrollable and REFRESH SETS performs a manual
+  rescan; automatic rescans are scheduled through LibAsync.
+- Added live name filtering and a shown/total counter to MY SETS, plus detail
+  filters for light, medium and heavy armor, weapons and jewelry.
+- Added LibSets as a required standalone dependency and use its public API for
+  canonical set-name lookup and complete item-piece definitions when ESO's
+  Collections API returns aliases or no pieces.
+- Added a shared internal SetData module for canonical set IDs, normalized set
+  identity, collection paths, piece keys, crafted definitions and drop rules.
+  Item Finder, Set Tracker and Build Planner now use the same programmatic data.
+- Standardized all player-facing addon text, settings, tooltips, notifications
+  and chat messages in English for public distribution.
+- Fixed KEHBUILD imports treating a jewelry trait such as Infused as an armor
+  weight, which prevented neck and ring slots from importing.
+- Made acquired leads clickable in Mythic Helper to start their ESO scrying session directly.
+- Fixed Item Finder resolving the overworld zone for dungeon categories that
+  cover multiple instances, such as Fungal Grotto I and II in Stonefalls.
+- Added Set Tracker with a starter watch list, red/orange/green collection
+  status, set bonuses, piece sources, bank locations, character snapshots and
+  stickerbook/transmute availability. Item Finder results can add sets directly.
+- Replaced the long KEH launcher with a compact icon bar and hover tooltips,
+  including direct access to the new Set Tracker.
+- Added physical five-piece completion and name-based matching for crafted sets
+  such as Hunding's Rage, which do not have stickerbook entries.
+- Fixed Item Finder losing mouse/edit focus after opening and closing Set Tracker.
+- List missing armor, jewelry and weapon types for crafted sets instead of
+  showing only cached physical pieces.
+
 ## 2.7.2
 
 - Added built-in drop hints for Shattered Paths Signet because LibLeadDrop 1.0.0 does not yet contain its five leads.

@@ -13,6 +13,12 @@ KPH.defaults = {
     showInventorySuggestedPrice = true,
     protectArmoryItems = true,
     plannedSetId = 0,
+    trackedSetIds = {},
+    setTrackerSeeded = false,
+    setTrackerSeedVersion = 0,
+    setTrackerCharacters = {},
+    setOwnershipCharacters = {},
+    setOwnershipMigrated = false,
     plannedMythicSetId = 0,
     plannerNotifications = true,
     buildPlans = {},
@@ -106,30 +112,31 @@ function KPH:Initialize()
     self:InitializeGoldmaker()
     self:InitializeFishingIntegration()
     self:InitializeBuildPlanner()
+    self:InitializeSetPlanner()
     self:InitializeMythicHelper()
     self:InitializeSettings()
 
     local function ToggleDebug()
         self.DEBUG = not self.DEBUG
-        d(string.format("[KEH] Debug %s.", self.DEBUG and "på" or "av"))
+        d(string.format("[KEH] Debug %s.", self.DEBUG and "enabled" or "disabled"))
     end
     local function ShowSelectedPrice()
         local itemLink = self:GetSelectedItemLink()
         if not itemLink or itemLink == "" then
-            d("[KEH] Ingen vara är vald i Guild Store.")
+            d("[KEH] No item is selected in the Guild Store.")
             return
         end
         local result, reason = self:GetTTCUnitPrice(itemLink)
         if result then
-            d(string.format("[KEH] %s: %s g/st (%s)", itemLink,
+            d(string.format("[KEH] %s: %s gold each (%s)", itemLink,
                 self:FormatGold(result.unitPrice), result.source))
         else
-            d(string.format("[KEH] Pris saknas: %s", reason or "okänd orsak"))
+            d(string.format("[KEH] Price unavailable: %s", reason or "unknown reason"))
         end
     end
     SLASH_COMMANDS["/kehdebug"] = ToggleDebug
     SLASH_COMMANDS["/kehprice"] = ShowSelectedPrice
-    -- Gamla kommandon behålls för befintliga användare och instruktioner.
+    -- Legacy commands remain available for existing users and instructions.
     SLASH_COMMANDS["/kphdebug"] = ToggleDebug
     SLASH_COMMANDS["/kphprice"] = ShowSelectedPrice
 end
