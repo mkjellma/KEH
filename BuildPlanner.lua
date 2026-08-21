@@ -1,20 +1,20 @@
 local KPH = KjellmanESOHelper
 
 local SLOTS = {
-    { key="head", name="Huvud", equip=EQUIP_TYPE_HEAD },
-    { key="shoulders", name="Axlar", equip=EQUIP_TYPE_SHOULDERS },
-    { key="chest", name="Bröst", equip=EQUIP_TYPE_CHEST },
-    { key="hands", name="Händer", equip=EQUIP_TYPE_HAND },
-    { key="waist", name="Midja", equip=EQUIP_TYPE_WAIST },
-    { key="legs", name="Ben", equip=EQUIP_TYPE_LEGS },
-    { key="feet", name="Fötter", equip=EQUIP_TYPE_FEET },
-    { key="neck", name="Halsband", equip=EQUIP_TYPE_NECK },
+    { key="head", name="Head", equip=EQUIP_TYPE_HEAD },
+    { key="shoulders", name="Shoulders", equip=EQUIP_TYPE_SHOULDERS },
+    { key="chest", name="Chest", equip=EQUIP_TYPE_CHEST },
+    { key="hands", name="Hands", equip=EQUIP_TYPE_HAND },
+    { key="waist", name="Waist", equip=EQUIP_TYPE_WAIST },
+    { key="legs", name="Legs", equip=EQUIP_TYPE_LEGS },
+    { key="feet", name="Feet", equip=EQUIP_TYPE_FEET },
+    { key="neck", name="Neck", equip=EQUIP_TYPE_NECK },
     { key="ring1", name="Ring 1", equip=EQUIP_TYPE_RING },
     { key="ring2", name="Ring 2", equip=EQUIP_TYPE_RING },
-    { key="frontMain", name="Frontbar – vapen", weapon=true, bar=1 },
-    { key="frontOff", name="Frontbar – offhand", offhand=true, bar=1 },
-    { key="backMain", name="Backbar – vapen", weapon=true, bar=2 },
-    { key="backOff", name="Backbar – offhand", offhand=true, bar=2 },
+    { key="frontMain", name="Front bar – weapon", weapon=true, bar=1 },
+    { key="frontOff", name="Front bar – offhand", offhand=true, bar=1 },
+    { key="backMain", name="Back bar – weapon", weapon=true, bar=2 },
+    { key="backOff", name="Back bar – offhand", offhand=true, bar=2 },
 }
 
 local ONE_HAND = {
@@ -245,8 +245,7 @@ local function StyleModalButton(control,textValue,r,g,b)
 end
 
 local function SetIdentity(setId)
-    local name=GetItemSetName(setId)
-    return zo_strlower((name and name~="") and name or tostring(setId))
+    return KPH:GetSetDataIdentity(setId)
 end
 
 local function PieceBaseKey(setId, link)
@@ -360,24 +359,7 @@ local function Compatible(slotDef, link)
 end
 
 local function BuildSource(setId, link, equipOverride, weaponOverride)
-    local setType=GetItemSetType(setId)
-    local equip=link and GetItemLinkEquipType(link) or equipOverride
-    local weapon=link and GetItemLinkWeaponType(link) or weaponOverride
-    local isWeapon=weapon and weapon~=WEAPONTYPE_NONE
-    if setType==ITEM_SET_TYPE_WORLD then
-        if equip==EQUIP_TYPE_WAIST or equip==EQUIP_TYPE_FEET then return "Delve-boss" end
-        if equip==EQUIP_TYPE_HEAD or equip==EQUIP_TYPE_CHEST or equip==EQUIP_TYPE_LEGS then return "World boss" end
-        if equip==EQUIP_TYPE_SHOULDERS or equip==EQUIP_TYPE_HAND then return "Public dungeon-boss" end
-        if equip==EQUIP_TYPE_RING or equip==EQUIP_TYPE_NECK then return "Dark Anchor / world event" end
-        if isWeapon then return "World boss / public dungeon-boss" end
-    elseif setType==ITEM_SET_TYPE_DUNGEON then
-        if isWeapon or equip==EQUIP_TYPE_RING or equip==EQUIP_TYPE_NECK then return "Slutboss" end
-        return "Dungeonbossar"
-    elseif setType==ITEM_SET_TYPE_MONSTER then
-        if equip==EQUIP_TYPE_HEAD then return "Veteran-slutboss" end
-        return "Undaunted-kista"
-    elseif setType==ITEM_SET_TYPE_CRAFTED then return "Crafting station" end
-    return "Setets aktivitet"
+    return KPH:GetSetPieceSource(setId,link,equipOverride,weaponOverride)
 end
 
 function KPH:GetActiveBuild()
@@ -436,9 +418,9 @@ function KPH:FindBuildSet(search)
     if matches[1] and matches[1].exact then return matches[1].id end
     if #matches == 1 then return matches[1].id end
     if #matches > 1 then
-        d("[KEH] Flera set matchar. Skriv ett mer exakt namn:")
+        d("[KEH] Multiple sets match. Enter a more exact name:")
         for i=1, math.min(10,#matches) do d("  "..matches[i].name) end
-    else d("[KEH] Inget set hittades.") end
+    else d("[KEH] No set found.") end
 end
 
 function KPH:GetBuildSetMatches(search)
@@ -458,8 +440,8 @@ function KPH:GetBuildSetMatches(search)
             end
             id=GetNextItemSetCollectionId(id)
         end
-        -- Crafted sets finns inte i sticker book och saknas därför i iteratorn.
-        -- Set-ID:n är täta och billiga att kontrollera en gång per UI-laddning.
+        -- Crafted sets are not in the stickerbook and therefore not in the iterator.
+        -- Set IDs are dense and inexpensive to scan once per UI load.
         for scannedId=1,3000 do
             if not known[scannedId] then
                 local name=GetItemSetName(scannedId)
@@ -470,10 +452,16 @@ function KPH:GetBuildSetMatches(search)
             end
         end
     end
+    local seen={}
     for _,entry in ipairs(self.buildSetSearchIndex) do
         local id,name,lower=entry.id,entry.name,entry.lower
         if string.find(lower,needle,1,true) then
-            table.insert(matches,{id=id,name=name,exact=lower==needle})
+            id=self:CanonicalizeSetId(id,name)
+            local identity=self:GetSetDataIdentity(id,name)
+            if not seen[identity] then
+                table.insert(matches,{id=id,name=name,exact=lower==needle})
+                seen[identity]=true
+            end
         end
     end
     table.sort(matches,function(a,b)
@@ -569,9 +557,9 @@ function KPH:AcceptBuildSlotSearch(matchIndex)
         end
         local pieces=self:GetCompatibleBuildPieces(match.id,slotDef)
         if #pieces==0 then
-            -- Crafted sets och vissa monster-/specialset saknar ibland en
-            -- användbar Collections-länk. Slottypen räcker för planering och
-            -- fysisk ägarkontroll även i de fallen.
+            -- Crafted and some monster/special sets may lack a usable
+            -- Collections link. Slot type is enough for planning and physical
+            -- ownership checks in those cases.
             local choice={setId=match.id,generic=true,
                 crafted=GetItemSetType(match.id)==ITEM_SET_TYPE_CRAFTED}
             if slotDef.weapon then choice.weaponType=WEAPONTYPE_SWORD
@@ -603,7 +591,8 @@ function KPH:AcceptBuildSlotSearch(matchIndex)
         for field in text:gmatch("[^|]+") do table.insert(fields,zo_strtrim(field)) end
         local isJewelry=slotDef.equip==EQUIP_TYPE_RING or
             slotDef.equip==EQUIP_TYPE_NECK
-        local optionName=isJewelry and nil or fields[2]
+        local optionName
+        if not isJewelry then optionName=fields[2] end
         local traitName
         if isJewelry then
             local accidentalWeight=fields[2] and
@@ -667,7 +656,8 @@ function KPH:ImportBuildText(text)
                     local slotDef=FindSlotDef(slotKey)
                     local isJewelry=slotDef.equip==EQUIP_TYPE_RING or
                         slotDef.equip==EQUIP_TYPE_NECK
-                    local optionName=isJewelry and nil or fields[2]
+                    local optionName
+                    if not isJewelry then optionName=fields[2] end
                     local traitName
                     if isJewelry then
                         local accidentalWeight=fields[2] and
@@ -835,18 +825,14 @@ end
 
 function KPH:GetBuildOwnedCounts()
     local baseCounts,exactCounts={},{}
-    for _,bagId in ipairs({BAG_BACKPACK,BAG_WORN,BAG_BANK,BAG_SUBSCRIBER_BANK}) do
-        for slotIndex=0,GetBagSize(bagId)-1 do
-            local link=GetItemLink(bagId,slotIndex,LINK_STYLE_DEFAULT)
-            if link and link~="" then
-                local hasSet,_,_,_,_,setId=GetItemLinkSetInfo(link,false)
-                if hasSet then
-                    local baseKey=PieceBaseKey(setId,link)
-                    local exactKey=PieceKey(setId,link)
-                    baseCounts[baseKey]=(baseCounts[baseKey] or 0)+1
-                    exactCounts[exactKey]=(exactCounts[exactKey] or 0)+1
-                end
-            end
+    if not self.setOwnership then self:RefreshSetOwnership(false) end
+    for _,item in ipairs(self:GetOwnedSetItemLinks()) do
+        local link,setId=item.link,item.setId
+        if link and link~="" and setId then
+            local baseKey=PieceBaseKey(setId,link)
+            local exactKey=PieceKey(setId,link)
+            baseCounts[baseKey]=(baseCounts[baseKey] or 0)+1
+            exactCounts[exactKey]=(exactCounts[exactKey] or 0)+1
         end
     end
     return baseCounts,exactCounts
@@ -1182,7 +1168,6 @@ function KPH:CreateBuildPlannerWindow()
     importOpen:SetMouseOverFontColor(1,1,1,1)
     importOpen:SetText("Import Build")
     importOpen:SetHandler("OnClicked",function() self:OpenBuildImport() end)
-    help:SetText("Vänsterklick: sök och välj set. Högerklick: byt del/vapentyp.")
     help:SetText("Left: choose set. Right: weapon/weight. Shift+Right: trait. Ctrl+Left: mark owned.")
     local counters=WINDOW_MANAGER:CreateControl(nil,w,CT_LABEL)
     counters:SetAnchor(TOPLEFT,w,TOPLEFT,24,88)
@@ -1433,7 +1418,7 @@ end
 function KPH:CreateBuildLauncher()
     if self.buildLauncher then return end
     local launcher=WINDOW_MANAGER:CreateTopLevelWindow(self.name.."BuildLauncher")
-    launcher:SetDimensions(508,38)
+    launcher:SetDimensions(386,44)
     launcher:SetAnchor(TOPLEFT,GuiRoot,TOPLEFT,
         self.savedVariables.buildLauncherX or 20,
         self.savedVariables.buildLauncherY or 300)
@@ -1445,61 +1430,62 @@ function KPH:CreateBuildLauncher()
     bg:SetAnchorFill(launcher)
     bg:SetMouseEnabled(false)
     local label=WINDOW_MANAGER:CreateControl(nil,launcher,CT_LABEL)
-    label:SetDimensions(112,38)
+    label:SetDimensions(50,44)
     label:SetAnchor(LEFT,launcher,LEFT,0,0)
     label:SetFont("ZoFontGameBold")
     label:SetHorizontalAlignment(TEXT_ALIGN_CENTER)
     label:SetVerticalAlignment(TEXT_ALIGN_CENTER)
     label:SetColor(1,0.85,0.35,1)
-    label:SetText("KEH Build")
+    label:SetText("KEH")
     label:SetMouseEnabled(false)
-    local findButton=WINDOW_MANAGER:CreateControl(
-        self.name.."BuildLauncherFind",launcher,CT_BUTTON)
-    findButton:SetDimensions(62,34)
-    findButton:SetAnchor(LEFT,label,RIGHT,2,0)
-    findButton:SetFont("ZoFontGameBold")
-    findButton:SetText("FIND")
-    findButton:SetNormalFontColor(0.45,0.85,1,1)
-    findButton:SetMouseOverFontColor(1,1,1,1)
-    findButton:SetHandler("OnClicked",function() self:ShowItemFinder() end)
-    local inventoryButton=WINDOW_MANAGER:CreateControl(
-        self.name.."BuildLauncherInventory",launcher,CT_BUTTON)
-    inventoryButton:SetDimensions(62,34)
-    inventoryButton:SetAnchor(LEFT,findButton,RIGHT,2,0)
-    inventoryButton:SetFont("ZoFontGameBold")
-    inventoryButton:SetText("INV")
-    inventoryButton:SetNormalFontColor(0.55,1,0.55,1)
-    inventoryButton:SetMouseOverFontColor(1,1,1,1)
-    inventoryButton:SetHandler("OnClicked",function()
-        self:ToggleInventoryManagerPanel()
-    end)
-    local notesButton=WINDOW_MANAGER:CreateControl(
-        self.name.."BuildLauncherNotes",launcher,CT_BUTTON)
-    notesButton:SetDimensions(86,34)
-    notesButton:SetAnchor(LEFT,inventoryButton,RIGHT,2,0)
-    notesButton:SetFont("ZoFontGameBold")
-    notesButton:SetText("NOTES")
-    notesButton:SetNormalFontColor(1,0.75,0.35,1)
-    notesButton:SetMouseOverFontColor(1,1,1,1)
-    notesButton:SetHandler("OnClicked",function() self:ToggleNotepad() end)
-    local mythicButton=WINDOW_MANAGER:CreateControl(
-        self.name.."BuildLauncherMythic",launcher,CT_BUTTON)
-    mythicButton:SetDimensions(86,34)
-    mythicButton:SetAnchor(LEFT,notesButton,RIGHT,2,0)
-    mythicButton:SetFont("ZoFontGameBold")
-    mythicButton:SetText("MYTHIC")
-    mythicButton:SetNormalFontColor(0.8,0.55,1,1)
-    mythicButton:SetMouseOverFontColor(1,1,1,1)
-    mythicButton:SetHandler("OnClicked",function() self:ShowMythicHelper() end)
-    local goldButton=WINDOW_MANAGER:CreateControl(
-        self.name.."BuildLauncherGold",launcher,CT_BUTTON)
-    goldButton:SetDimensions(86,34)
-    goldButton:SetAnchor(RIGHT,launcher,RIGHT,-2,0)
-    goldButton:SetFont("ZoFontGameBold")
-    goldButton:SetText("GOLD")
-    goldButton:SetNormalFontColor(1,0.78,0.2,1)
-    goldButton:SetMouseOverFontColor(1,1,1,1)
-    goldButton:SetHandler("OnClicked",function() self:ShowGoldmaker() end)
+    local function AddIconButton(key,anchor,texturePath,color,tooltip,callback)
+        local button=WINDOW_MANAGER:CreateControl(
+            self.name.."BuildLauncher"..key,launcher,CT_BUTTON)
+        button:SetDimensions(46,40)
+        button:SetAnchor(LEFT,anchor,RIGHT,2,0)
+        local icon=WINDOW_MANAGER:CreateControl(nil,button,CT_TEXTURE)
+        icon:SetDimensions(32,32)
+        icon:SetAnchor(CENTER,button,CENTER,0,0)
+        icon:SetTexture(texturePath)
+        icon:SetColor(color[1],color[2],color[3],1)
+        button:SetHandler("OnClicked",callback)
+        button:SetHandler("OnMouseEnter",function(control)
+            icon:SetColor(1,1,1,1)
+            InitializeTooltip(InformationTooltip,control,BOTTOM,0,-6,TOP)
+            SetTooltipText(InformationTooltip,tooltip)
+        end)
+        button:SetHandler("OnMouseExit",function()
+            icon:SetColor(color[1],color[2],color[3],1)
+            ClearTooltip(InformationTooltip)
+        end)
+        return button
+    end
+    local buildButton=AddIconButton("Build",label,
+        "EsoUI/Art/MainMenu/menubar_character_up.dds",{1,0.85,0.35},
+        "Build Planner",function() self:ShowBuildPlanner() end)
+    local findButton=AddIconButton("Find",buildButton,
+        "EsoUI/Art/MainMenu/menubar_map_up.dds",{0.45,0.85,1},
+        "Item Finder",function() self:ShowItemFinder() end)
+    local setsButton=AddIconButton("Sets",findButton,
+        "EsoUI/Art/MainMenu/menubar_collections_up.dds",{0.95,0.65,0.3},
+        "Set Tracker",function()
+            self:CreateSetPlannerWindow()
+            self:RefreshSetPlanner()
+            self.setPlannerWindow:SetHidden(false)
+            SCENE_MANAGER:SetInUIMode(true)
+        end)
+    local inventoryButton=AddIconButton("Inventory",setsButton,
+        "EsoUI/Art/MainMenu/menubar_inventory_up.dds",{0.55,1,0.55},
+        "Inventory Manager",function() self:ToggleInventoryManagerPanel() end)
+    local notesButton=AddIconButton("Notes",inventoryButton,
+        "EsoUI/Art/MainMenu/menubar_journal_up.dds",{1,0.75,0.35},
+        "Notepad",function() self:ToggleNotepad() end)
+    local mythicButton=AddIconButton("Mythic",notesButton,
+        "EsoUI/Art/MainMenu/menubar_skills_up.dds",{0.8,0.55,1},
+        "Mythic Helper",function() self:ShowMythicHelper() end)
+    AddIconButton("Gold",mythicButton,
+        "EsoUI/Art/currency/currency_gold.dds",{1,0.78,0.2},
+        "Goldmaker",function() self:ShowGoldmaker() end)
     launcher:SetHandler("OnMouseDown",function(control)
         control.kehStartLeft=control:GetLeft()
         control.kehStartTop=control:GetTop()
@@ -1531,11 +1517,11 @@ function KPH:InitializeBuildPlanner()
         if not id then return end
         local build=self:GetActiveBuild()
         for _,existing in ipairs(build.sets) do if existing==id then
-            d("[KEH] Setet finns redan i bygget.")
+            d("[KEH] The set is already in this build.")
             return
         end end
         table.insert(build.sets,id)
-        d("[KEH] Lade till "..GetItemSetName(id).." i "..build.name)
+        d("[KEH] Added "..GetItemSetName(id).." to "..build.name)
         self:ShowBuildPlanner()
     end
     SLASH_COMMANDS["/kehbuild"]=function(text)

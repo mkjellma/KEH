@@ -3,7 +3,7 @@ local KPH = KjellmanESOHelper
 function KPH:InitializeSettings()
     local LAM = LibAddonMenu2
     if not LAM then
-        self:DebugLog("LibAddonMenu-2.0 saknas; standardinställningar används")
+        self:DebugLog("LibAddonMenu-2.0 is missing; default settings are used")
         return
     end
 
@@ -18,33 +18,33 @@ function KPH:InitializeSettings()
     })
     LAM:RegisterOptionControls(self.name .. "Options", {
         {
-            type = "checkbox", name = "Aktivera automatisk ifyllnad",
+            type = "checkbox", name = "Enable automatic price fill",
             getFunc = function() return self.savedVariables.autoFill end,
             setFunc = function(value) self.savedVariables.autoFill = value end,
             default = self.defaults.autoFill,
         },
         {
-            type = "checkbox", name = "Använd TTC suggested price",
-            tooltip = "Om värdet saknas beräknar KPH ett försiktigt estimat från sales average, minimum, listing average och antal poster.",
+            type = "checkbox", name = "Use TTC suggested price",
+            tooltip = "If suggested price is unavailable, KEH calculates a conservative estimate from sales average, minimum, listing average and listing count.",
             getFunc = function() return self.savedVariables.useSuggestedPrice end,
             setFunc = function(value) self.savedVariables.useSuggestedPrice = value end,
             default = self.defaults.useSuggestedPrice,
         },
         {
-            type = "slider", name = "Prisfaktor (%)", min = 1, max = 200, step = 1,
+            type = "slider", name = "Price factor (%)", min = 1, max = 200, step = 1,
             getFunc = function() return self.savedVariables.priceFactor end,
             setFunc = function(value) self.savedVariables.priceFactor = value end,
             default = self.defaults.priceFactor,
         },
         {
-            type = "checkbox", name = "Avrunda föreslaget pris",
+            type = "checkbox", name = "Round suggested price",
             getFunc = function() return self.savedVariables.roundPrice end,
             setFunc = function(value) self.savedVariables.roundPrice = value end,
             default = self.defaults.roundPrice,
         },
         {
-            type = "checkbox", name = "Visa TTC suggested price i inventory",
-            tooltip = "Visar suggested price per styck före det vanliga priset. Grönt är hög tillförlitlighet, orange är lägre och rött är osäkert.",
+            type = "checkbox", name = "Show TTC suggested price in inventory",
+            tooltip = "Shows the suggested unit price before the normal price. Green is high confidence, orange is lower confidence and red is uncertain.",
             getFunc = function() return self.savedVariables.showInventorySuggestedPrice end,
             setFunc = function(value)
                 self.savedVariables.showInventorySuggestedPrice = value
@@ -53,8 +53,8 @@ function KPH:InitializeSettings()
             default = self.defaults.showInventorySuggestedPrice,
         },
         {
-            type = "checkbox", name = "Notifiera om värdefulla föremål",
-            tooltip = "Visar en skärmnotis och spelar ett ljud när ett nytt föremål eller en ny stack i backpacken uppskattas vara värd minst den valda gränsen enligt TTC.",
+            type = "checkbox", name = "Notify about valuable items",
+            tooltip = "Shows an on-screen notification and plays a sound when a new backpack item or stack is estimated by TTC to be worth at least the selected threshold.",
             getFunc = function() return self.savedVariables.notifyValuableItems end,
             setFunc = function(value)
                 self.savedVariables.notifyValuableItems = value
@@ -62,7 +62,7 @@ function KPH:InitializeSettings()
             default = self.defaults.notifyValuableItems,
         },
         {
-            type = "slider", name = "Gräns för värdefullt föremål (g)",
+            type = "slider", name = "Valuable item threshold (gold)",
             min = 1000, max = 100000, step = 1000,
             getFunc = function()
                 return self.savedVariables.valuableItemThreshold
@@ -73,8 +73,8 @@ function KPH:InitializeSettings()
             default = self.defaults.valuableItemThreshold,
         },
         {
-            type = "checkbox", name = "Skydda Armory-föremål automatiskt",
-            tooltip = "Låser föremål som används i en Armory-build med ESO:s vanliga spelar-lås. Det hindrar försäljning, deconstruction och förstöring. Föremål som redan har låsts förblir låsta om funktionen stängs av.",
+            type = "checkbox", name = "Automatically protect Armory items",
+            tooltip = "Locks items used by an Armory build with ESO's player lock. This prevents selling, deconstruction and destruction. Items already locked remain locked if this option is disabled.",
             getFunc = function() return self.savedVariables.protectArmoryItems end,
             setFunc = function(value)
                 self.savedVariables.protectArmoryItems = value
@@ -83,8 +83,8 @@ function KPH:InitializeSettings()
             default = self.defaults.protectArmoryItems,
         },
         {
-            type = "checkbox", name = "Planner-notis när en del hittas",
-            tooltip = "Visar text på skärmen och spelar ett ljud första gången en saknad del från det planerade setet hamnar i inventoryt.",
+            type = "checkbox", name = "Notify when a tracked set piece is found",
+            tooltip = "Shows on-screen text and plays a sound when a tracked set piece enters your inventory.",
             getFunc = function() return self.savedVariables.plannerNotifications end,
             setFunc = function(value)
                 self.savedVariables.plannerNotifications = value
@@ -92,8 +92,8 @@ function KPH:InitializeSettings()
             default = self.defaults.plannerNotifications,
         },
         {
-            type = "checkbox", name = "Visa suggested price i butiker",
-            tooltip = "Visar uppskattat marknadsvärde per styck direkt före kostnaden i NPC- och PvP-butiker. Butikens riktiga kostnad ändras inte.",
+            type = "checkbox", name = "Show suggested price in stores",
+            tooltip = "Shows estimated unit market value before the cost in NPC and PvP stores. The store's actual price is not changed.",
             getFunc = function() return self.savedVariables.showStoreSuggestedPrice end,
             setFunc = function(value)
                 self.savedVariables.showStoreSuggestedPrice = value
@@ -104,8 +104,8 @@ function KPH:InitializeSettings()
             default = self.defaults.showStoreSuggestedPrice,
         },
         {
-            type = "checkbox", name = "Fokusera nya quests automatiskt",
-            tooltip = "Gör den senast accepterade questen till aktiv och assisterad quest i trackern.",
+            type = "checkbox", name = "Automatically focus new quests",
+            tooltip = "Makes the most recently accepted quest active and assisted in the quest tracker.",
             getFunc = function() return self.savedVariables.focusNewQuests end,
             setFunc = function(value) self.savedVariables.focusNewQuests = value end,
             default = self.defaults.focusNewQuests,
@@ -133,11 +133,11 @@ function KPH:InitializeSettings()
             default = self.defaults.fishingBiteIndicator,
         },
         {
-            type = "header", name = "Prisjämförelse i Guild Trader",
+            type = "header", name = "Guild Trader price comparison",
         },
         {
-            type = "checkbox", name = "Visa procent mot normalpris",
-            tooltip = "Visar hur mycket annonsens styckpris ligger under eller över KPH:s normalpris. Grönt är billigare, rött är dyrare och orange betyder osäkert prisunderlag.",
+            type = "checkbox", name = "Show percentage versus market price",
+            tooltip = "Shows how far a listing's unit price is below or above KEH's market price. Green is cheaper, red is more expensive and orange indicates uncertain price data.",
             getFunc = function() return self.savedVariables.showTraderPriceComparison end,
             setFunc = function(value)
                 self.savedVariables.showTraderPriceComparison = value

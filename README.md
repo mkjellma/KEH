@@ -2,6 +2,8 @@
 
 Kjellman ESO Helper is a quality-of-life addon for **The Elder Scrolls Online (PC)**. It combines pricing, inventory management, build planning, item finding, quest focus and an in-game notepad in one addon.
 
+The addon interface and documentation are provided in English.
+
 Current version: **2.7.2**
 
 ## Features
@@ -13,6 +15,14 @@ Current version: **2.7.2**
 - Build Planner with sets, armor weight, weapon type, traits and owned-item matching.
 - Build import/export using the `KEHBUILD` text format.
 - Item Finder with acquisition hints and zone names for overland, dungeon, monster and special sets.
+- Set Tracker with a searchable color-coded watch list, shown/total counter,
+  category-filtered details, set bonuses, piece sources,
+  stickerbook status, crafted-set support and saved bank/character locations.
+  It discovers owned sets from equipped gear, inventory, bank and character
+  snapshots when opened, on inventory changes and through REFRESH SETS.
+- Shared programmatic set-data layer keeps Item Finder, Set Tracker and Build
+  Planner consistent across alternate ESO item and Collections IDs, backed by
+  LibSets for complete set-item data when ESO's Collections API is incomplete.
 - Mythic Helper with name search, owned/active/missing lead status, zones and detailed drop hints through LibLeadDrop.
 - Floating Notepad with General, Farming, Shopping and Build tabs.
 - Checklists, missing-build lists and `KEHNOTE` import/export.
@@ -24,6 +34,10 @@ Current version: **2.7.2**
 ## Requirements
 
 - The Elder Scrolls Online for PC.
+- [LibSets](https://www.esoui.com/downloads/info2241-LibSetsAllsetitemsingameampprev....html)
+  is required for canonical set IDs and complete set-piece data.
+- [LibAsync](https://www.esoui.com/downloads/info2125-LibAsync.html) is required
+  to schedule ownership refreshes without blocking normal gameplay.
 - [Tamriel Trade Centre](https://www.tamrieltradecentre.com/) is optional but required for TTC market-price features.
 - LibAddonMenu-2.0 is optional and enables the settings panel.
 - Master Merchant is **not required**.
@@ -38,8 +52,9 @@ Current version: **2.7.2**
 
 ## Main controls
 
-- Floating `KEH Build` button: open Build Planner.
+- Compact floating KEH icon bar: hover an icon for its name and click to open it.
 - `FIND`: open Item Finder.
+- Click an Item Finder result to add it to Set Tracker.
 - `INV`: open KEH Inventory Manager.
 - `NOTES`: open KEH Notepad.
 - `GOLD`: open Goldmaker Production and Farming.
@@ -56,6 +71,7 @@ Current version: **2.7.2**
 - `/kehnotes` — open Notepad.
 - `/kehgold` — open Goldmaker.
 - `/kehmythic <name>` — search for and open a Mythic item.
+- `/kehsets` — open Set Tracker or add a set by name.
 - `/kehfishalert` — test the configured fishing bite notifications.
 - `/kehprice` — show TTC price for the selected guild-store item.
 

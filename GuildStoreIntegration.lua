@@ -10,7 +10,7 @@ function KPH:CreatePriceLabel()
     label:SetVerticalAlignment(TEXT_ALIGN_TOP)
     label:SetDimensions(390, 74)
     label:SetAnchor(TOPLEFT, TRADING_HOUSE.invoice, BOTTOMLEFT, 0, 8)
-    label:SetText("KEH: välj en vara att sälja")
+    label:SetText("KEH: select an item to sell")
     self.priceLabel = label
 end
 
@@ -25,7 +25,7 @@ function KPH:ClearSelection()
     state.currentStackCount = 0
     state.lastAutoFilledPrice = nil
     state.userHasEditedPrice = false
-    self:SetStatus("KEH: välj en vara att sälja")
+    self:SetStatus("KEH: select an item to sell")
 end
 
 function KPH:RefreshPendingPost()
@@ -56,7 +56,7 @@ function KPH:RefreshPendingPost()
 
     local result, reason = self:GetTTCUnitPrice(itemLink)
     if not result then
-        self:SetStatus(reason or "Ingen TTC-prisdata hittades")
+        self:SetStatus(reason or "No TTC price data found")
         return
     end
 
@@ -70,7 +70,7 @@ function KPH:RefreshPendingPost()
     end
     totalPrice = math.max(1, totalPrice)
 
-    local status = "Förslag beräknat"
+    local status = "Suggested price calculated"
     local mayAutoFill = self.savedVariables.autoFill and
         (isNewItem or stackChanged) and not state.userHasEditedPrice
     if mayAutoFill then
@@ -78,19 +78,19 @@ function KPH:RefreshPendingPost()
         tradingHouse:SetPendingPostPrice(totalPrice)
         state.isApplyingAutomaticPrice = false
         state.lastAutoFilledPrice = totalPrice
-        status = "Pris automatiskt ifyllt"
+        status = "Price filled automatically"
     elseif state.userHasEditedPrice then
-        status = "Manuellt pris bevaras"
+        status = "Manual price preserved"
     end
 
-    self:SetStatus(string.format("TTC: %s g/st (%s)\nStack: %d   Förslag: %s g\n%s",
+    self:SetStatus(string.format("TTC: %s gold/ea (%s)\nStack: %d   Suggested: %s gold\n%s",
         self:FormatGold(adjustedUnitPrice), result.source, stackCount,
         self:FormatGold(totalPrice), status))
 end
 
 function KPH:InitializeGuildStoreIntegration()
     if not TRADING_HOUSE or type(TRADING_HOUSE.SetupPendingPost) ~= "function" then
-        self:DebugLog("Sell-panelen har ännu inte skapats")
+        self:DebugLog("The sell panel has not been created yet")
         if type(ZO_TradingHouse_OnInitialized) == "function" then
             SecurePostHook("ZO_TradingHouse_OnInitialized", function()
                 self:InitializeGuildStoreIntegration()
@@ -121,7 +121,7 @@ function KPH:InitializeGuildStoreIntegration()
         price = tonumber(price)
         if not state.lastAutoFilledPrice or price ~= state.lastAutoFilledPrice then
             state.userHasEditedPrice = true
-            self:DebugLog("Manuell prisändring upptäckt")
+            self:DebugLog("Manual price change detected")
         end
     end)
 end

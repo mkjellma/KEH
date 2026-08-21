@@ -44,7 +44,7 @@ function KPH:GetTTCUnitPrice(itemLink)
     end
     if not TamrielTradeCentrePrice or
        type(TamrielTradeCentrePrice.GetPriceInfo) ~= "function" then
-        return nil, "Tamriel Trade Centre är inte laddat"
+        return nil, "Tamriel Trade Centre is not loaded"
     end
 
     local ok, info = pcall(function()
@@ -52,15 +52,15 @@ function KPH:GetTTCUnitPrice(itemLink)
     end)
     if not ok then
         self:DebugLog("TTC GetPriceInfo misslyckades: " .. tostring(info))
-        return nil, "TTC kunde inte läsa prisdata"
+        return nil, "TTC could not read price data"
     end
-    if not info then return nil, "Ingen TTC-prisdata hittades" end
+    if not info then return nil, "No TTC price data found" end
 
     local unitPrice, source
     if self.savedVariables.useSuggestedPrice and tonumber(info.SuggestedPrice) then
         unitPrice, source = tonumber(info.SuggestedPrice), "suggested"
     elseif self.savedVariables.useSuggestedPrice then
-        unitPrice, source = self:CalculateTTCFallbackPrice(info), "KPH estimate"
+        unitPrice, source = self:CalculateTTCFallbackPrice(info), "KEH estimate"
     elseif tonumber(info.SaleAvg) then
         unitPrice, source = tonumber(info.SaleAvg), "sales average"
     elseif tonumber(info.Avg) then
@@ -68,7 +68,7 @@ function KPH:GetTTCUnitPrice(itemLink)
     end
 
     if not unitPrice or unitPrice <= 0 then
-        return nil, "Ingen tillförlitlig TTC-prisdata hittades"
+        return nil, "No reliable TTC price data found"
     end
     return { unitPrice = unitPrice, source = source, info = info }
 end

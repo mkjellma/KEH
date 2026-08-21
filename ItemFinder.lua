@@ -9,24 +9,34 @@ local function FindZoneForCollectionNames(setId,names)
        type(GetZoneId)~="function" then return nil end
     local wanted={}
     for _,name in ipairs(names) do wanted[NormalizeLocationName(name)]=true end
-    local matchedZoneId
+    local setType=GetItemSetType(setId)
+    local instanceType=setType==ITEM_SET_TYPE_DUNGEON or
+        setType==ITEM_SET_TYPE_MONSTER or setType==ITEM_SET_TYPE_WEAPON
+    local leafName=NormalizeLocationName(names[#names])
+    local matchedZoneId,instanceZoneId
     for zoneIndex=1,GetNumZones() do
         local zoneName=GetZoneNameByIndex(zoneIndex)
-        if wanted[NormalizeLocationName(zoneName)] then
+        local normalizedZone=NormalizeLocationName(zoneName)
+        if wanted[normalizedZone] then
             matchedZoneId=GetZoneId(zoneIndex)
+            break
+        elseif instanceType and leafName~="" and
+               string.sub(normalizedZone,1,#leafName+1)==leafName.." " then
+            -- A shared collection category such as "Fungal Grotto" maps to
+            -- separate instance zones named "Fungal Grotto I" and "II".
+            instanceZoneId=instanceZoneId or GetZoneId(zoneIndex)
         end
     end
+    matchedZoneId=matchedZoneId or instanceZoneId
     if not matchedZoneId or matchedZoneId==0 then return nil end
-    local storyZoneId=type(GetZoneStoryZoneIdForZoneId)=="function" and
-        GetZoneStoryZoneIdForZoneId(matchedZoneId) or nil
-    local usedStoryZone=storyZoneId and storyZoneId~=0
-    if usedStoryZone then matchedZoneId=storyZoneId end
-    local setType=GetItemSetType(setId)
-    if (setType==ITEM_SET_TYPE_DUNGEON or setType==ITEM_SET_TYPE_MONSTER or
-        setType==ITEM_SET_TYPE_WEAPON) and not usedStoryZone and
-        type(GetParentZoneId)=="function" then
+    if instanceType and type(GetParentZoneId)=="function" then
         local parentId=GetParentZoneId(matchedZoneId)
-        if parentId and parentId~=0 then matchedZoneId=parentId end
+        if parentId and parentId~=0 and parentId~=matchedZoneId then
+            matchedZoneId=parentId
+        end
+    elseif type(GetZoneStoryZoneIdForZoneId)=="function" then
+        local storyZoneId=GetZoneStoryZoneIdForZoneId(matchedZoneId)
+        if storyZoneId and storyZoneId~=0 then matchedZoneId=storyZoneId end
     end
     local zoneName=type(GetZoneNameById)=="function" and
         GetZoneNameById(matchedZoneId) or nil
@@ -34,72 +44,22 @@ local function FindZoneForCollectionNames(setId,names)
 end
 
 local function CollectionLocation(setId)
-    local names={}
-    local categoryId=GetItemSetCollectionCategoryId(setId)
-    local safety=0
-    while categoryId and categoryId>0 and safety<8 do
-        local name=GetItemSetCollectionCategoryName(categoryId)
-        if name and name~="" then table.insert(names,1,name) end
-        categoryId=GetItemSetCollectionCategoryParentId(categoryId)
-        safety=safety+1
-    end
-    local location=#names>0 and table.concat(names," > ") or "Unknown location"
+    setId=KPH:CanonicalizeSetId(setId)
+    local names=KPH:GetSetCollectionNames(setId)
+    local location=KPH:GetSetCollectionLocation(setId)
     local zone=FindZoneForCollectionNames(setId,names)
-    if not zone and GetItemSetType(setId)==ITEM_SET_TYPE_WORLD and #names>0 then
+    if not zone and #names>0 and GetItemSetType(setId)==ITEM_SET_TYPE_WORLD then
         zone=names[#names]
     end
     return location,zone or "Unknown zone"
 end
 
 local function PieceSource(setId,itemLink)
-    local setType=GetItemSetType(setId)
-    local equip=GetItemLinkEquipType(itemLink)
-    local weapon=GetItemLinkWeaponType(itemLink)
-    local isWeapon=weapon and weapon~=WEAPONTYPE_NONE
-    if ITEM_SET_TYPE_MYTHIC and setType==ITEM_SET_TYPE_MYTHIC then
-        return "Antiquities leads (often several zones)"
-    elseif setType==ITEM_SET_TYPE_WORLD then
-        if equip==EQUIP_TYPE_WAIST or equip==EQUIP_TYPE_FEET then return "Delve boss" end
-        if equip==EQUIP_TYPE_HEAD or equip==EQUIP_TYPE_CHEST or
-           equip==EQUIP_TYPE_LEGS then return "World boss" end
-        if equip==EQUIP_TYPE_SHOULDERS or equip==EQUIP_TYPE_HAND then
-            return "Public dungeon boss"
-        end
-        if equip==EQUIP_TYPE_RING or equip==EQUIP_TYPE_NECK then
-            return "Dark Anchor / zone world event"
-        end
-        if isWeapon then return "World boss / public dungeon boss" end
-        return "Overland activity / treasure chest"
-    elseif setType==ITEM_SET_TYPE_DUNGEON then
-        if isWeapon or equip==EQUIP_TYPE_RING or equip==EQUIP_TYPE_NECK then
-            return "Dungeon final boss"
-        end
-        if equip==EQUIP_TYPE_WAIST or equip==EQUIP_TYPE_HAND or
-           equip==EQUIP_TYPE_FEET then return "Dungeon mini-bosses" end
-        return "Dungeon bosses"
-    elseif setType==ITEM_SET_TYPE_MONSTER then
-        if equip==EQUIP_TYPE_HEAD then return "Veteran dungeon final boss" end
-        return "Undaunted shoulder coffer"
-    elseif setType==ITEM_SET_TYPE_CRAFTED then return "Crafting station"
-    elseif setType==ITEM_SET_TYPE_WEAPON then return "Arena / special activity"
-    end
-    return "Set activity"
+    return KPH:GetSetPieceSource(setId,itemLink)
 end
 
 local function GeneralSource(setId)
-    local setType=GetItemSetType(setId)
-    if ITEM_SET_TYPE_MYTHIC and setType==ITEM_SET_TYPE_MYTHIC then
-        return "Antiquities leads (often several zones)"
-    elseif setType==ITEM_SET_TYPE_WORLD then
-        return "Overland bosses, delves, public dungeons and world events"
-    elseif setType==ITEM_SET_TYPE_DUNGEON then
-        return "Dungeon bosses; weapons and jewelry from the final boss"
-    elseif setType==ITEM_SET_TYPE_MONSTER then
-        return "Head: veteran final boss. Shoulder: Undaunted coffer"
-    elseif setType==ITEM_SET_TYPE_CRAFTED then return "Crafting station"
-    elseif setType==ITEM_SET_TYPE_WEAPON then return "Arena / special activity"
-    end
-    return "Set activity"
+    return KPH:GetSetGeneralSource(setId)
 end
 
 function KPH:FindItemLocations(search)
@@ -122,9 +82,10 @@ function KPH:FindItemLocations(search)
         return a.name<b.name
     end)
     for _,entry in ipairs(candidates) do
+        local resolvedSetId=self:CanonicalizeSetId(entry.id,entry.name)
         local bestLink,bestName
-        for index=1,GetNumItemSetCollectionPieces(entry.id) do
-            local pieceId=GetItemSetCollectionPieceInfo(entry.id,index)
+        for index=1,(GetNumItemSetCollectionPieces(resolvedSetId) or 0) do
+            local pieceId=GetItemSetCollectionPieceInfo(resolvedSetId,index)
             local link=GetItemSetCollectionPieceItemLink(pieceId,LINK_STYLE_DEFAULT,
                 ITEM_TRAIT_TYPE_NONE,ITEM_FUNCTIONAL_QUALITY_MAGIC)
             if link and link~="" then
@@ -137,15 +98,15 @@ function KPH:FindItemLocations(search)
                 end
             end
         end
-        local location,zone=CollectionLocation(entry.id)
+        local location,zone=CollectionLocation(resolvedSetId)
         table.insert(results,{
-            setId=entry.id,
+            setId=resolvedSetId,
             name=bestName or entry.name,
             setName=entry.name,
             location=location,
             zone=zone,
-            source=bestLink and PieceSource(entry.id,bestLink) or
-                GeneralSource(entry.id),
+            source=bestLink and PieceSource(resolvedSetId,bestLink) or
+                GeneralSource(resolvedSetId),
         })
         if #results>=8 then break end
     end
@@ -164,13 +125,12 @@ function KPH:RefreshItemFinder()
         if result then
             local setText=result.name==result.setName and "" or
                 "  |cAAAAAA["..result.setName.."]|r"
-            button:SetText(string.format("|cFFFFFF%s|r%s\n|cD6B35A%s|r  |cAAAAAA— %s|r",
-                result.name,setText,result.location,result.source))
             button:SetText(string.format(
-                "|cFFFFFF%s|r%s\n|cD6B35A%s|r  |cAAAAAA- %s|r  |c66AADDZone: %s|r",
+                "|cFFFFFF%s|r%s  |cD6B35A[CLICK: ADD TO SET TRACKER]|r\n|cD6B35A%s|r  |cAAAAAA- %s|r  |c66AADDZone: %s|r",
                 result.name,setText,result.location,result.source,result.zone))
+            button.kehSetId=result.setId
             button:SetHidden(false)
-        else button:SetHidden(true) end
+        else button.kehSetId=nil button:SetHidden(true) end
     end
 end
 
@@ -250,6 +210,9 @@ function KPH:CreateItemFinderWindow()
         button:SetFont("ZoFontGameSmall")
         button:SetHorizontalAlignment(TEXT_ALIGN_LEFT)
         button:SetVerticalAlignment(TEXT_ALIGN_CENTER)
+        button:SetHandler("OnClicked",function(control)
+            if control.kehSetId then self:AddSetTrackerSet(control.kehSetId,true) end
+        end)
         button:SetHidden(true)
         resultButtons[index]=button
     end
